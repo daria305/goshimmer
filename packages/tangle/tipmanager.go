@@ -106,12 +106,26 @@ type TipManagerParams struct {
 	TipLifeGracePeriodDiff time.Duration
 }
 
+// TipManagerInterface defines the interface for the Tip Manager
+type TipManagerInterface interface {
+	Setup()
+	Set(tips ...MessageID)
+	AddTip(message *Message)
+	Tips(p payload.Payload, countParents int) (parents MessageIDs, err error)
+	SelectTips(p payload.Payload, count int) (parents MessageIDs)
+	AllTips() MessageIDs
+	TipCount() int
+	Shutdown()
+	TipSet() *randommap.RandomMap
+	Events() *TipManagerEvents
+}
+
 // TipManager manages a map of tips and emits events for their removal and addition.
 type TipManager struct {
 	tangle      *Tangle
 	tips        *randommap.RandomMap
 	tipsCleaner *TimedTaskExecutor
-	Events      *TipManagerEvents
+	events      *TipManagerEvents
 }
 
 // NewTipManager creates a new tip-selector.
@@ -120,7 +134,7 @@ func NewTipManager(tangle *Tangle, tips ...MessageID) *TipManager {
 		tangle:      tangle,
 		tips:        randommap.New(),
 		tipsCleaner: NewTimedTaskExecutor(1),
-		Events: &TipManagerEvents{
+		events: &TipManagerEvents{
 			TipAdded:   events.NewEvent(tipEventHandler),
 			TipRemoved: events.NewEvent(tipEventHandler),
 		},
@@ -133,13 +147,21 @@ func NewTipManager(tangle *Tangle, tips ...MessageID) *TipManager {
 	return tipSelector
 }
 
+func (t *TipManager) TipSet() *randommap.RandomMap {
+	return t.tips
+}
+
+func (t *TipManager) Events() *TipManagerEvents {
+	return t.events
+}
+
 // Setup sets up the behavior of the component by making it attach to the relevant events of other components.
 func (t *TipManager) Setup() {
 	t.tangle.Orderer.Events.MessageOrdered.Attach(events.NewClosure(func(messageID MessageID) {
 		t.tangle.Storage.Message(messageID).Consume(t.AddTip)
 	}))
 
-	t.Events.TipRemoved.Attach(events.NewClosure(func(tipEvent *TipEvent) {
+	t.events.TipRemoved.Attach(events.NewClosure(func(tipEvent *TipEvent) {
 		t.tipsCleaner.Cancel(tipEvent.MessageID)
 	}))
 
@@ -177,7 +199,7 @@ func (t *TipManager) AddTip(message *Message) {
 	//  before adding a message as a tip. For now we're using only 1 worker after the scheduler and it shouldn't be a problem.
 
 	if t.tips.Set(messageID, messageID) {
-		t.Events.TipAdded.Trigger(&TipEvent{
+		t.events.TipAdded.Trigger(&TipEvent{
 			MessageID: messageID,
 		})
 
@@ -194,7 +216,7 @@ func (t *TipManager) AddTip(message *Message) {
 	// a tip loses its tip status if it is referenced by another message
 	message.ForEachParentByType(StrongParentType, func(parentMessageID MessageID) {
 		if _, deleted := t.tips.Delete(parentMessageID); deleted {
-			t.Events.TipRemoved.Trigger(&TipEvent{
+			t.events.TipRemoved.Trigger(&TipEvent{
 				MessageID: parentMessageID,
 			})
 		}
@@ -211,7 +233,7 @@ func (t *TipManager) Tips(p payload.Payload, countParents int) (parents MessageI
 	}
 
 	// select parents
-	parents = t.selectTips(p, countParents)
+	parents = t.SelectTips(p, countParents)
 	// if transaction, make sure that all inputs are in the past cone of the selected tips
 	if p != nil && p.Type() == ledgerstate.TransactionType {
 		transaction := p.(*ledgerstate.Transaction)
@@ -224,7 +246,7 @@ func (t *TipManager) Tips(p payload.Payload, countParents int) (parents MessageI
 			}
 			tries--
 
-			parents = t.selectTips(p, t.tangle.Options.TipManagerParams.MaxParentsCount)
+			parents = t.SelectTips(p, t.tangle.Options.TipManagerParams.MaxParentsCount)
 		}
 	}
 
@@ -233,7 +255,7 @@ func (t *TipManager) Tips(p payload.Payload, countParents int) (parents MessageI
 
 // selectTips returns a list of parents. In case of a transaction, it references young enough attachments
 // of consumed transactions directly. Otherwise/additionally count tips are randomly selected.
-func (t *TipManager) selectTips(p payload.Payload, count int) (parents MessageIDs) {
+func (t *TipManager) SelectTips(p payload.Payload, count int) (parents MessageIDs) {
 	parents = make([]MessageID, 0, t.tangle.Options.TipManagerParams.MaxParentsCount)
 	parentsMap := make(map[MessageID]types.Empty)
 

@@ -41,7 +41,7 @@ type Tangle struct {
 	ApprovalWeightManager *ApprovalWeightManager
 	TimeManager           *TimeManager
 	OTVConsensusManager   *OTVConsensusManager
-	TipManager            *TipManager
+	TipManager            TipManagerInterface
 	Requester             *Requester
 	MessageFactory        *MessageFactory
 	LedgerState           *LedgerState

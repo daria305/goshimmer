@@ -60,7 +60,7 @@ func TestTipManager_AddTip(t *testing.T) {
 		tipManager.AddTip(messages["1"])
 
 		assert.Equal(t, 1, tipManager.TipCount())
-		assert.Contains(t, tipManager.tips.Keys(), messages["1"].ID())
+		assert.Contains(t, tipManager.TipSet().Keys(), messages["1"].ID())
 	}
 
 	// Message 2
@@ -69,7 +69,7 @@ func TestTipManager_AddTip(t *testing.T) {
 		tipManager.AddTip(messages["2"])
 
 		assert.Equal(t, 2, tipManager.TipCount())
-		assert.Contains(t, tipManager.tips.Keys(), messages["1"].ID(), messages["2"].ID())
+		assert.Contains(t, tipManager.TipSet().Keys(), messages["1"].ID(), messages["2"].ID())
 	}
 
 	// Message 3
@@ -78,7 +78,7 @@ func TestTipManager_AddTip(t *testing.T) {
 		tipManager.AddTip(messages["3"])
 
 		assert.Equal(t, 1, tipManager.TipCount())
-		assert.Contains(t, tipManager.tips.Keys(), messages["3"].ID())
+		assert.Contains(t, tipManager.TipSet().Keys(), messages["3"].ID())
 	}
 }
 
@@ -112,7 +112,7 @@ func TestTipManager_DataMessageTips(t *testing.T) {
 		tipManager.AddTip(messages["1"])
 
 		assert.Equal(t, 1, tipManager.TipCount())
-		assert.Contains(t, tipManager.tips.Keys(), messages["1"].ID())
+		assert.Contains(t, tipManager.TipSet().Keys(), messages["1"].ID())
 
 		parents, err := tipManager.Tips(nil, 2)
 		assert.NoError(t, err)
@@ -126,7 +126,7 @@ func TestTipManager_DataMessageTips(t *testing.T) {
 		tipManager.AddTip(messages["2"])
 
 		assert.Equal(t, 2, tipManager.TipCount())
-		assert.Contains(t, tipManager.tips.Keys(), messages["1"].ID(), messages["2"].ID())
+		assert.Contains(t, tipManager.TipSet().Keys(), messages["1"].ID(), messages["2"].ID())
 
 		parents, err := tipManager.Tips(nil, 3)
 		assert.NoError(t, err)
@@ -140,7 +140,7 @@ func TestTipManager_DataMessageTips(t *testing.T) {
 		tipManager.AddTip(messages["3"])
 
 		assert.Equal(t, 1, tipManager.TipCount())
-		assert.Contains(t, tipManager.tips.Keys(), messages["3"].ID())
+		assert.Contains(t, tipManager.TipSet().Keys(), messages["3"].ID())
 
 		parents, err := tipManager.Tips(nil, 2)
 		assert.NoError(t, err)
@@ -159,8 +159,8 @@ func TestTipManager_DataMessageTips(t *testing.T) {
 			tips = append(tips, messages[nString].ID())
 
 			assert.Equalf(t, count+2, tipManager.TipCount(), "TipCount does not match after adding Message %d", n)
-			assert.ElementsMatchf(t, tipManager.tips.Keys(), tips, "Elements in strongTips do not match after adding Message %d", n)
-			assert.Contains(t, tipManager.tips.Keys(), messages["3"].ID())
+			assert.ElementsMatchf(t, tipManager.TipSet().Keys(), tips, "Elements in strongTips do not match after adding Message %d", n)
+			assert.Contains(t, tipManager.TipSet().Keys(), messages["3"].ID())
 		}
 	}
 
