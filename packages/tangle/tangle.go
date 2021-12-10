@@ -97,6 +97,8 @@ func New(options ...Option) (tangle *Tangle) {
 
 	tangle.WeightProvider = tangle.Options.WeightProvider
 
+	tangle.SetupAdversary()
+
 	return
 }
 
@@ -184,6 +186,15 @@ func (t *Tangle) Shutdown() {
 
 	if t.WeightProvider != nil {
 		t.WeightProvider.Shutdown()
+	}
+}
+
+func (t *Tangle) SetupAdversary() {
+	//tangle.Options.Adversary.Orphanage
+	if true {
+		t.TipManager = NewTipManagerOrphanageAttack(t.TipManager.(*TipManager))
+		t.MessageFactory = NewMessageFactory(t, t.TipManager, PrepareLikeReferences)
+
 	}
 }
 
