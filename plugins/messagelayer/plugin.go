@@ -197,6 +197,9 @@ func newTangle(deps tangledeps) *tangle.Tangle {
 			MaxParentsCount:        TipManagerParameters.MaxParentsCount,
 			TipLifeGracePeriodDiff: TipManagerParameters.TipLifeGracePeriodDiff,
 		}),
+		tangle.AdversaryConfig(tangle.AdversaryParams{
+			OrphanageEnabled: AdversaryParameters.OrphanageEnabled,
+		}),
 		tangle.SyncTimeWindow(Parameters.TangleTimeWindow),
 		tangle.StartSynced(Parameters.StartSynced),
 		tangle.CacheTimeProvider(database.CacheTimeProvider()),

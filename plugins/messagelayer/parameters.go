@@ -87,6 +87,12 @@ type TipManagerParametersDefinition struct {
 	TipLifeGracePeriodDiff time.Duration `default:"1m" usage:"the time difference between removing old tip from the tip pool and max parent age check"`
 }
 
+// AdversaryParametersDefinition contains the definition of the parameters for adversary behavior.
+type AdversaryParametersDefinition struct {
+	// OrphanageEnabled defines if the adversary mode for orphanage attack is enabled.
+	OrphanageEnabled bool `default:"false" usage:"defines if the adversary mode for orphanage attack is enabled"`
+}
+
 // Parameters contains the general configuration used by the messagelayer plugin.
 var Parameters = &ParametersDefinition{}
 
@@ -105,6 +111,9 @@ var SolidifierParameters = &SolidifierParametersDefinition{}
 // TipManagerParameters contains the tip manager configuration used by the messagelayer plugin.
 var TipManagerParameters = &TipManagerParametersDefinition{}
 
+// AdversaryParameters contains the tip manager configuration used by the adversary mode.
+var AdversaryParameters = &AdversaryParametersDefinition{}
+
 func init() {
 	configuration.BindParameters(Parameters, "messageLayer")
 	configuration.BindParameters(ManaParameters, "mana")
@@ -112,4 +121,5 @@ func init() {
 	configuration.BindParameters(SchedulerParameters, "scheduler")
 	configuration.BindParameters(SolidifierParameters, "solidifier")
 	configuration.BindParameters(TipManagerParameters, "tipManager")
+	configuration.BindParameters(AdversaryParameters, "adversary")
 }

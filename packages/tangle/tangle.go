@@ -189,9 +189,20 @@ func (t *Tangle) Shutdown() {
 	}
 }
 
+// endregion ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// region Adversary /////////////////////////////////////////////////////////////////////////////////////////////
+
+// AdversaryParams represents the parameters for the Tip Manager.
+type AdversaryParams struct {
+	OrphanageEnabled bool
+}
+
+// SetupAdversary modifies tangle based on provided Adversary Options.
 func (t *Tangle) SetupAdversary() {
-	//tangle.Options.Adversary.Orphanage
-	if true {
+
+	// orphanage attack
+	if t.Options.AdversaryParams.OrphanageEnabled {
 		t.TipManager = NewTipManagerOrphanageAttack(t.TipManager.(*TipManager))
 		t.MessageFactory = NewMessageFactory(t, t.TipManager, PrepareLikeReferences)
 
@@ -251,6 +262,7 @@ type Options struct {
 	RateSetterParams             RateSetterParams
 	SolidifierParams             SolidifierParams
 	TipManagerParams             TipManagerParams
+	AdversaryParams              AdversaryParams
 	WeightProvider               WeightProvider
 	SyncTimeWindow               time.Duration
 	StartSynced                  bool
@@ -326,6 +338,12 @@ func SolidifierConfig(params SolidifierParams) Option {
 func TipManagerConfig(params TipManagerParams) Option {
 	return func(options *Options) {
 		options.TipManagerParams = params
+	}
+
+} // AdversaryConfig is an Option for the Tangle that allows to set adversary options.
+func AdversaryConfig(params AdversaryParams) Option {
+	return func(options *Options) {
+		options.AdversaryParams = params
 	}
 }
 
