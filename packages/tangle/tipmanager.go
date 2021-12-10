@@ -253,7 +253,7 @@ func (t *TipManager) Tips(p payload.Payload, countParents int) (parents MessageI
 	return
 }
 
-// selectTips returns a list of parents. In case of a transaction, it references young enough attachments
+// SelectTips returns a list of parents. In case of a transaction, it references young enough attachments
 // of consumed transactions directly. Otherwise/additionally count tips are randomly selected.
 func (t *TipManager) SelectTips(p payload.Payload, count int) (parents MessageIDs) {
 	parents = make([]MessageID, 0, t.tangle.Options.TipManagerParams.MaxParentsCount)
