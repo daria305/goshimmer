@@ -118,8 +118,8 @@ func (api *GoShimmerAPI) GetDiagnosticsDRNG() (*csv.Reader, error) {
 // GetDiagnosticsOrphanage runds diagnostic orphanage over the tangle, takes current time that will indicate
 // time after which it can stop walking, to syncronize results from different clients
 // Returns OrphanageResponse json response.
-func (api *GoShimmerAPI) GetDiagnosticsOrphanage(startMsgID tangle.MessageID, startTime, stopTime time.Time, cutStart time.Duration) (*jsonmodels.OrphanageResponse, error) {
-	request := jsonmodels.NewOrphanageRequest(startMsgID, startTime, stopTime, cutStart)
+func (api *GoShimmerAPI) GetDiagnosticsOrphanage(startMsgID tangle.MessageID, startTime, stopTime time.Time, measurePoints []time.Time) (*jsonmodels.OrphanageResponse, error) {
+	request := jsonmodels.NewOrphanageRequest(startMsgID, startTime, stopTime, measurePoints)
 	response := &jsonmodels.OrphanageResponse{}
 
 	route := RouteDiagnosticsOrphanage

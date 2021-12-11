@@ -32,19 +32,23 @@ type MissingAvailableResponse struct {
 
 // OrphanageRequest is a struct providing request for an orphanage diagnostic API.
 type OrphanageRequest struct {
-	StartMsgID  string `json:"startMsgID,omitempty"`
-	StartTime   int64  `json:"startTime,omitempty"`
-	StopTime    int64  `json:"stopTime,omitempty"`
-	CutoffStart int64  `json:"cutoffStart,omitempty"`
+	StartMsgID    string  `json:"startMsgID,omitempty"`
+	StartTime     int64   `json:"startTime,omitempty"`
+	StopTime      int64   `json:"stopTime,omitempty"`
+	MeasurePoints []int64 `json:"cutoffStart,omitempty"`
 }
 
 // NewOrphanageRequest creates a request object for OrphanageResponse json model.
-func NewOrphanageRequest(startMsgID tangle.MessageID, startTime, stopTime time.Time, cutStart time.Duration) *OrphanageRequest {
+func NewOrphanageRequest(startMsgID tangle.MessageID, startTime, stopTime time.Time, measurePoints []time.Time) *OrphanageRequest {
+	measureInt64 := make([]int64, len(measurePoints))
+	for i, point := range measurePoints {
+		measureInt64[i] = point.UnixMicro()
+	}
 	return &OrphanageRequest{
-		StartMsgID:  startMsgID.Base58(),
-		StartTime:   startTime.UnixMicro(),
-		StopTime:    stopTime.UnixMicro(),
-		CutoffStart: cutStart.Microseconds(),
+		StartMsgID:    startMsgID.Base58(),
+		StartTime:     startTime.UnixMicro(),
+		StopTime:      stopTime.UnixMicro(),
+		MeasurePoints: measureInt64,
 	}
 }
 

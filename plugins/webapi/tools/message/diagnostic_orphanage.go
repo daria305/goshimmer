@@ -16,7 +16,7 @@ func DiagnosticOrphanageHandler(c echo.Context) error {
 }
 
 func diagnosticOrphanage(c echo.Context) error {
-	startMsgID, startTime, stopTime, cutoffStart, err := readDiagnosticOrphanageRequest(c)
+	startMsgID, startTime, stopTime, middlePoints, err := readDiagnosticOrphanageRequest(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, jsonmodels.OrphanageResponse{Error: err.Error()})
 	}
@@ -32,29 +32,30 @@ func diagnosticOrphanage(c echo.Context) error {
 	deps.Tangle.Utils.WalkMessageID(func(msgID tangle.MessageID, walker *walker.Walker) {
 		// we assume no conflicts
 		approverMessageIDs := deps.Tangle.Utils.ApprovingMessageIDs(msgID)
-		cutoffStop := stopTime.Add(-maxAge)
 		var timestamp time.Time
-		var issuer string
+		var issuerID string
 
 		deps.Tangle.Storage.Message(msgID).Consume(func(message *tangle.Message) {
 			timestamp = message.IssuingTime()
 			pubKey := message.IssuerPublicKey()
-			issuer = identity.New(pubKey).ID().String()
+			issuerID = identity.New(pubKey).ID().String()
 		})
-		// wider range from startTime to cutoffStop
-		if timestamp.After(startTime) && timestamp.Before(cutoffStop) {
-			lastMsgTimestamp, timestamp, lastMsgID, msgID = updateLastMessageID(lastMsgTimestamp, timestamp, lastMsgID, msgID)
+		currentStartTime := startTime
 
-			increaseInnerCount(issuedCounts, issuer, 0)
-			// message has no parents - is orphaned
-			if len(approverMessageIDs) == 0 {
-				increaseInnerCount(orphanCounts, issuer, 0)
-			}
-			// inner range from startTime+cutoff to cutoffStop
-			if timestamp.After(startTime.Add(cutoffStart)) {
-				increaseInnerCount(issuedCounts, issuer, 1)
-				if len(approverMessageIDs) == 0 {
-					increaseInnerCount(orphanCounts, issuer, 1)
+		measurePoints := append(middlePoints, stopTime)
+		measurementsNumber := len(measurePoints)
+		if timestamp.After(startTime) && timestamp.Before(stopTime) {
+			createInnerMapIfFirstSeen(issuedCounts, orphanCounts, issuerID, measurementsNumber)
+			lastMsgTimestamp, timestamp, lastMsgID, msgID = updateLastMessageID(lastMsgTimestamp, timestamp, lastMsgID, msgID)
+			// count messages within time intervals between two consecutive measurement points
+			for intervalNum, currentEndTime := range measurePoints {
+				if timestamp.After(currentStartTime) && timestamp.Before(currentEndTime) {
+					increaseInnerCount(issuedCounts, issuerID, intervalNum)
+					if len(approverMessageIDs) == 0 {
+						increaseInnerCount(orphanCounts, issuerID, intervalNum)
+					}
+					// should be added only to one interval at a time
+					break
 				}
 			}
 		}
@@ -62,9 +63,9 @@ func diagnosticOrphanage(c echo.Context) error {
 		for _, approverMessageID := range approverMessageIDs {
 			walker.Push(approverMessageID)
 		}
-	}, tangle.MessageIDs{startMsgID})
+	}, tangle.MessageIDs{startMsgID}, false)
 
-	return c.JSON(http.StatusOK, jsonmodels.NewOrphanageResponse(ownId, maxAge, lastMsgID, issuedCounts, orphanCounts))
+	return c.JSON(http.StatusOK, jsonmodels.NewOrphanageResponse(ownId, maxAge, lastMsgID, orphanCounts, issuedCounts))
 }
 
 func increaseInnerCount(cuntsMap map[string][]int, key string, innerSliceIdx int) {
@@ -72,6 +73,13 @@ func increaseInnerCount(cuntsMap map[string][]int, key string, innerSliceIdx int
 		cuntsMap[key] = make([]int, 2)
 	}
 	cuntsMap[key][innerSliceIdx]++
+}
+
+func createInnerMapIfFirstSeen(issuerCounts, orphanageCounts map[string][]int, key string, measurementsNumber int) {
+	if _, ok := issuerCounts[key]; !ok {
+		issuerCounts[key] = make([]int, measurementsNumber)
+		orphanageCounts[key] = make([]int, measurementsNumber)
+	}
 }
 
 func updateLastMessageID(lastMsgTimestamp, timestamp time.Time, lastMsgID, msgID tangle.MessageID) (time.Time, time.Time, tangle.MessageID, tangle.MessageID) {
@@ -88,7 +96,7 @@ func updateLastMessageID(lastMsgTimestamp, timestamp time.Time, lastMsgID, msgID
 	return lastMsgTimestamp, timestamp, lastMsgID, msgID
 }
 
-func readDiagnosticOrphanageRequest(c echo.Context) (startMsgID tangle.MessageID, startTime, stopTime time.Time, cutStart time.Duration, err error) {
+func readDiagnosticOrphanageRequest(c echo.Context) (startMsgID tangle.MessageID, startTime, stopTime time.Time, measurePoints []time.Time, err error) {
 	var request jsonmodels.OrphanageRequest
 	if err = c.Bind(&request); err != nil {
 		return
@@ -104,7 +112,10 @@ func readDiagnosticOrphanageRequest(c echo.Context) (startMsgID tangle.MessageID
 	if stopTime = time.UnixMicro(request.StopTime); stopTime.UnixMicro() == 0 {
 		stopTime = time.Now()
 	}
-	cutStart = time.Duration(request.CutoffStart) * time.Microsecond
+
+	for _, point := range request.MeasurePoints {
+		measurePoints = append(measurePoints, time.UnixMicro(point))
+	}
 	return
 }
 
