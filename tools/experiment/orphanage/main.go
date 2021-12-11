@@ -32,14 +32,14 @@ type experimentParams struct {
 	K              int
 	Q              float64
 	Mps            int
-	AttackDuration int   // attack duration = n * MaxParentAge
-	Cutoffs        []int // cutoff = cutoffs[i] * MaxParentsAge
+	AttackDuration int         // attack duration = n * MaxParentAge
+	MeasureTimes   []time.Time // cutoff = cutoffs[i] * MaxParentsAge
 	AdversaryID    string
 }
 
 func testOrphanageAPI() {
 
-	fileName := fmt.Sprintf("orphanage-maxAge_%ds-k_%d-%s", int(MaxParentAge.Seconds()), K, time.Now().UTC().Format(time.RFC3339))
+	fileName := fmt.Sprintf("orphanage-maxAge_%ds-k_%d-%s.csv", int(MaxParentAge.Seconds()), K, time.Now().UTC().Format(time.RFC3339))
 	csvWriter := createWriter(fileName, header)
 
 	honestClts := utils.NewClients(urls, "honest")
@@ -52,12 +52,11 @@ func testOrphanageAPI() {
 		ExpId:          0,
 		MaxParentAge:   MaxParentAge,
 		K:              K,
-		Q:              0.5,
-		Mps:            50,
+		Q:              0.4,
+		Mps:            20,
 		AttackDuration: 2,
 		AdversaryID:    adversaryID,
 	}
-	startCutoffTime := MaxParentAge * 1
 	noAdversarySpamTime := MaxParentAge * 0
 
 	honestRate := int(float64(params.Mps) * (1 - params.Q) / float64(len(honestClts.GetGoShimmerAPIs())))
@@ -71,7 +70,7 @@ func testOrphanageAPI() {
 	wg.Wait()
 
 	// attack starts
-	log.Info("Starting an orphanage attack with q=%d and mps=%d", params.Q, params.Mps)
+	log.Infof("Starting an orphanage attack with q=%d and mps=%d", params.Q, params.Mps)
 	startTime := time.Now()
 	attackDuration := time.Duration(params.AttackDuration) * params.MaxParentAge
 	honestClts.Spam(honestRate, attackDuration, "unit", wg)
@@ -81,19 +80,26 @@ func testOrphanageAPI() {
 	startMsg := tangle.EmptyMessageID
 	stopTime := time.Now()
 
-	log.Infof("Spamming has finished! Requesting orphanage data from honest nodes.")
+	params.MeasureTimes = calculateCutoffs(startTime, stopTime, params.MaxParentAge/4)
+
+	log.Infof("Idle spamming started")
+	honestClts.Spam(idleHonestRate, MaxParentAge, "unit", wg)
+	wg.Wait()
+
 	// TODO make it async
 	// request orphanage data
-	resp, err := honestClts.GetGoShimmerAPIs()[0].GetDiagnosticsOrphanage(startMsg, startTime, stopTime, startCutoffTime)
+	idx := 0
+	log.Infof("Spamming has finished! Requesting orphanage data from honest nodes.")
+	resp, err := honestClts.GetGoShimmerAPIs()[idx].GetDiagnosticsOrphanage(startMsg, startTime, stopTime, params.MeasureTimes)
 	if err != nil {
 		log.Errorf("Error: %s, %s", resp.Error, err)
 	}
-
-	params.Cutoffs = calculateCutoffs(params.AttackDuration)
+	log.Infof("Response received from honest node nr %d", idx)
 	requester := resp.CreatorNodeID
 	//nextStartMsg := resp.LastMessageID
 
 	resultLines := ParseResults(params, resp, requester)
+	log.Infof("Writing to csv file, requester %s", requester)
 	err = csvWriter.WriteAll(resultLines)
 	if err != nil {
 		log.Errorf("Failed to write results to csv file: %s", err.Error())
@@ -102,10 +108,9 @@ func testOrphanageAPI() {
 	csvWriter.Flush()
 }
 
-func calculateCutoffs(attackDuration int) (cutoffs []int) {
-	for i := 0; i < attackDuration; i++ {
-		cutoffs = append(cutoffs, i)
-		i++
+func calculateCutoffs(startTime, stopTime time.Time, interval time.Duration) (measurePoints []time.Time) {
+	for currentTime := startTime.Add(interval); currentTime.Before(stopTime); currentTime = currentTime.Add(interval) {
+		measurePoints = append(measurePoints, currentTime)
 	}
 	return
 }
