@@ -39,7 +39,7 @@ type OrphanageRequest struct {
 }
 
 // NewOrphanageRequest creates a request object for OrphanageResponse json model.
-func NewOrphanageRequest(startMsgID tangle.MessageID, startTime, stopTime time.Time, cutStart, cutStop time.Duration) *OrphanageRequest {
+func NewOrphanageRequest(startMsgID tangle.MessageID, startTime, stopTime time.Time, cutStart time.Duration) *OrphanageRequest {
 	return &OrphanageRequest{
 		StartMsgID:  startMsgID.Base58(),
 		StartTime:   startTime.UnixMicro(),
@@ -53,8 +53,8 @@ type OrphanageResponse struct {
 	Error         string           `json:"error,omitempty"`
 	CreatorNodeID string           `json:"creatorNodeId"`
 	MaxParentAge  int64            `json:"maxParentAge"`
-	OrphansByNode map[string][]int `json:"orphansByNode,omitempty"`
-	IssuedByNode  map[string][]int `json:"issuedByNode,omitempty"`
+	OrphansByNode map[string][]int `json:"orphansByNode"`
+	IssuedByNode  map[string][]int `json:"issuedByNode"`
 	LastMessageID string           `json:"lastMessageID"`
 }
 

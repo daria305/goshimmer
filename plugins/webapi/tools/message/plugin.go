@@ -54,7 +54,7 @@ const (
 	// RouteDiagnosticsWeakTips is the API route for weak tips diagnostics.
 	RouteDiagnosticsWeakTips = RouteDiagnosticsTips + "/weak"
 	// RouteDiagnosticOrphanage is the APi route for orphanage diagnostic with end time in unix nano format.
-	RouteDiagnosticOrphanage = routeDiagnostics + "/orphanage/:time"
+	RouteDiagnosticOrphanage = routeDiagnostics + "/orphanage"
 )
 
 func configure(_ *node.Plugin) {

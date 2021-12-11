@@ -4,8 +4,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/iotaledger/goshimmer/packages/jsonmodels"
+	"github.com/iotaledger/goshimmer/packages/tangle"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -29,8 +29,8 @@ const (
 	RouteDiagnosticsTips = routeDiagnostics + "/tips"
 	// RouteDiagnosticsDRNG is the API route for DRNG diagnostics.
 	RouteDiagnosticsDRNG = routeDiagnostics + "/drng"
-	// RouteDiagnosticOrphanage is the APi route for orphanage diagnostic with end time in unix nano format.
-	RouteDiagnosticOrphanage = routeDiagnostics + "/orphanage"
+	// RouteDiagnosticsOrphanage is the APi route for orphanage diagnostic with end time in unix nano format.
+	RouteDiagnosticsOrphanage = routeDiagnostics + "/orphanage"
 )
 
 // GetDiagnosticsMessages runs full message diagnostics
@@ -118,12 +118,13 @@ func (api *GoShimmerAPI) GetDiagnosticsDRNG() (*csv.Reader, error) {
 // GetDiagnosticsOrphanage runds diagnostic orphanage over the tangle, takes current time that will indicate
 // time after which it can stop walking, to syncronize results from different clients
 // Returns OrphanageResponse json response.
-func (api *GoShimmerAPI) GetDiagnosticsOrphanage(time time.Time) (*jsonmodels.OrphanageResponse, error) {
+func (api *GoShimmerAPI) GetDiagnosticsOrphanage(startMsgID tangle.MessageID, startTime, stopTime time.Time, cutStart time.Duration) (*jsonmodels.OrphanageResponse, error) {
+	request := jsonmodels.NewOrphanageRequest(startMsgID, startTime, stopTime, cutStart)
 	response := &jsonmodels.OrphanageResponse{}
-	timeStr := strconv.Itoa(int(time.UnixNano()))
-	route := RouteDiagnosticOrphanage + "/" + timeStr
 
-	if err := api.do(http.MethodGet, route, nil, response); err != nil {
+	route := RouteDiagnosticsOrphanage
+
+	if err := api.do(http.MethodGet, route, request, response); err != nil {
 		return nil, err
 	}
 	return response, nil
