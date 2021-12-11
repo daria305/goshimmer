@@ -1,6 +1,9 @@
 package jsonmodels
 
-import "time"
+import (
+	"github.com/iotaledger/goshimmer/packages/tangle"
+	"time"
+)
 
 // PastconeRequest holds the message id to query.
 type PastconeRequest struct {
@@ -27,22 +30,41 @@ type MissingAvailableResponse struct {
 	Count        int                 `json:"count"`
 }
 
-// OrphanageResponse is a struct providing response for an orphanage diagnostic API
-type OrphanageResponse struct {
-	CreatorNodeID string         `json:"creatorNodeId"`
-	WalkStartTime int64          `json:"walkStartTime"`
-	MaxParentAge  int64          `json:"maxParentAge"`
-	OrphansByNode map[string]int `json:"orphansByNode,omitempty"`
-	IssuedByNode  map[string]int `json:"issuedByNode,omitempty"`
+// OrphanageRequest is a struct providing request for an orphanage diagnostic API.
+type OrphanageRequest struct {
+	StartMsgID  string `json:"startMsgID,omitempty"`
+	StartTime   int64  `json:"startTime,omitempty"`
+	StopTime    int64  `json:"stopTime,omitempty"`
+	CutoffStart int64  `json:"cutoffStart,omitempty"`
 }
 
-// NewOrphanageResponse creates a response object for OrphanageResponse json model
-func NewOrphanageResponse(nodeId string, startTime time.Time, maxAge time.Duration, orphansByNode map[string]int, issuedByNode map[string]int) *OrphanageResponse {
+// NewOrphanageRequest creates a request object for OrphanageResponse json model.
+func NewOrphanageRequest(startMsgID tangle.MessageID, startTime, stopTime time.Time, cutStart, cutStop time.Duration) *OrphanageRequest {
+	return &OrphanageRequest{
+		StartMsgID:  startMsgID.Base58(),
+		StartTime:   startTime.UnixMicro(),
+		StopTime:    stopTime.UnixMicro(),
+		CutoffStart: cutStart.Microseconds(),
+	}
+}
+
+// OrphanageResponse is a struct providing response for an orphanage diagnostic API.
+type OrphanageResponse struct {
+	Error         string           `json:"error,omitempty"`
+	CreatorNodeID string           `json:"creatorNodeId"`
+	MaxParentAge  int64            `json:"maxParentAge"`
+	OrphansByNode map[string][]int `json:"orphansByNode,omitempty"`
+	IssuedByNode  map[string][]int `json:"issuedByNode,omitempty"`
+	LastMessageID string           `json:"lastMessageID"`
+}
+
+// NewOrphanageResponse creates a response object for OrphanageResponse json model.
+func NewOrphanageResponse(nodeId string, maxAge time.Duration, lastMsgID tangle.MessageID, orphansByNode, issuedByNode map[string][]int) *OrphanageResponse {
 	return &OrphanageResponse{
 		CreatorNodeID: nodeId,
-		WalkStartTime: startTime.UnixNano(),
-		MaxParentAge:  maxAge.Nanoseconds(),
+		MaxParentAge:  maxAge.Microseconds(),
 		OrphansByNode: orphansByNode,
 		IssuedByNode:  issuedByNode,
+		LastMessageID: lastMsgID.Base58(),
 	}
 }
