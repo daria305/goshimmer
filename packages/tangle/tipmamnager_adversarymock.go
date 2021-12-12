@@ -5,8 +5,15 @@ import (
 	"github.com/iotaledger/goshimmer/packages/clock"
 	"github.com/iotaledger/goshimmer/packages/tangle/payload"
 	"github.com/iotaledger/hive.go/events"
+	"math"
+	"math/rand"
 	"sort"
 	"time"
+)
+
+const (
+	MaxAdversaryTipPoolSize = 200
+	MaxHonestTipPoolSize    = 10
 )
 
 type TipManagerOrphanageAttack struct {
@@ -75,10 +82,11 @@ func (t *TipManagerOrphanageAttack) AddTip(message *Message) {
 	var tipSet *[]MessageID
 	if message.IssuerPublicKey() == t.tangle.Options.Identity.PublicKey() {
 		tipSet = &t.orderedAdversaryTips
+		*tipSet = t.insertTip(*tipSet, messageID, timestamp, MaxAdversaryTipPoolSize)
 	} else {
 		tipSet = &t.orderedHonestTips
+		*tipSet = t.insertTip(*tipSet, messageID, timestamp, MaxHonestTipPoolSize)
 	}
-	*tipSet = t.insertTip(*tipSet, messageID, timestamp)
 
 	t.events.TipAdded.Trigger(&TipEvent{
 		MessageID: messageID,
@@ -116,12 +124,12 @@ func (t *TipManagerOrphanageAttack) getTips(parentCount int, tipSet []MessageID)
 }
 
 // insertTip add tip to the malicious tip set and keeps descending order, so the oldest tips will be at the end
-func (t *TipManagerOrphanageAttack) insertTip(tipSet []MessageID, id MessageID, timestamp time.Time) []MessageID {
+func (t *TipManagerOrphanageAttack) insertTip(tipSet []MessageID, id MessageID, timestamp time.Time, maxTipPoolSize int) []MessageID {
 	t.timestampMap[id] = timestamp
 	idx := sort.Search(len(tipSet), func(idx int) bool {
 		return timestamp.UnixNano() >= t.timestampMap[(tipSet)[idx]].UnixNano()
 	})
-	tipSet = insertTipAt(tipSet, id, idx)
+	tipSet = insertTipAt(tipSet, id, idx, maxTipPoolSize)
 	return tipSet
 }
 
@@ -136,13 +144,36 @@ func (t *TipManagerOrphanageAttack) AllTips() MessageIDs {
 }
 
 // insertTipAt inserts tip at given index
-func insertTipAt(tipSet []MessageID, id MessageID, idx int) []MessageID {
+func insertTipAt(tipSet []MessageID, id MessageID, idx, maxTipPoolSize int) []MessageID {
 	if idx == len(tipSet) {
 		return append(tipSet, id)
 	}
+	// limit the tip pool size to MaxTipPoolSize
+	// by removing random tip with probability that decreases when index increases
+	if len(tipSet) > maxTipPoolSize {
+		indexToRemove := chooseTipWithDecreasingProb(maxTipPoolSize)
+		// remove element at indexToRemove
+		tipSet = append(tipSet[:indexToRemove], tipSet[indexToRemove+1:]...)
+	}
+
 	// make place for new item at index idx
 	tipSet = append(tipSet[:idx+1], tipSet[idx:]...)
+
 	// insert new tip and keep the order
 	tipSet[idx] = id
 	return tipSet
+}
+
+// choose the tip that will be removed with a decreasing probability for higher indexes
+func chooseTipWithDecreasingProb(lengthOfArray int) int {
+	// last index has probability of being selected equal zero
+	lastIndex := float64(lengthOfArray) - 1
+	cdf := func(n float64) float64 {
+		return n * (n + 1) / 2
+	}
+	X := rand.Intn(int(cdf(lastIndex)))
+	invX := (math.Sqrt(1+8*float64(X)) - 1) / 2
+	// with the formulas above the most common are the lowest indexes, we need the opposite
+	index := lengthOfArray - 1 - int(invX)
+	return index
 }
