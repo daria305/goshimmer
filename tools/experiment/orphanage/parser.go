@@ -25,14 +25,14 @@ func ParseResults(params *ExperimentParams, respData *jsonmodels.OrphanageRespon
 	for i := range csvLines {
 		intervalStopTime := times[i]
 		var honestRate float64
-		if honestIssued[i] == 0 {
+		if honestIssued[i] == 0 || len(honestIssued) == 0 {
 			honestRate = 0
 		} else {
 			honestRate = float64(honestOrphaned[i]) / float64(honestIssued[i])
 		}
 
 		var advRate float64
-		if advIssued[i] == 0 {
+		if advIssued[i] == 0 || len(advIssued) == 0 {
 			advRate = 0
 		} else {
 			advRate = float64(advOrphaned[i]) / float64(advIssued[i])
@@ -101,9 +101,9 @@ func countMessagesBy(issuedBy, orphanedBy map[string][]int, issued, orphaned []i
 
 func countMsgBy(issuedBy map[string][]int, issued []int, issuer string) {
 	for i, countPerRange := range issuedBy[issuer] {
-		if len(issued) < i+1 {
-			log.Warnf("len of issued(%d) less than i(%d)+1", len(issued), i)
-			continue
+		if len(issued) == 0 {
+			log.Warnf("len of issued == 0, for issuer: %s", issuer)
+			return
 		}
 		issued[i] += countPerRange
 	}

@@ -12,14 +12,17 @@ import (
 )
 
 const (
-	MaxParentAge   = time.Minute
-	K              = 2
-	Mps            = 100
-	AttackDuration = 8
+	MaxParentAge         = time.Minute
+	K                    = 2
+	Mps                  = 50
+	AttackDuration       = 8
+	MeasurementsInterval = MaxParentAge / 4
+	IdleSpamTime         = MaxParentAge * 1
+	IdleHonestRate       = 2
 )
 
 var (
-	urls = []string{"http://localhost:8080", "http://localhost:8090", "http://172.24.0.6:8080", "http://172.24.0.8:8080", "http://172.24.0.5:8080"}
+	urls = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040", "http://localhost:8030", "http://localhost:8020"}
 
 	adversaryUrl = []string{"http://localhost:8070"}
 
@@ -83,9 +86,9 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 			Q:                    qRange[expId],
 			Mps:                  mps,
 			AttackDuration:       duration,
-			MeasurementsInterval: MaxParentAge / 4,
-			IdleSpamTime:         MaxParentAge * 1,
-			IdleHonestRate:       4,
+			MeasurementsInterval: MeasurementsInterval,
+			IdleSpamTime:         IdleSpamTime,
+			IdleHonestRate:       IdleHonestRate,
 		}
 		runSingleExperiment(params, walkStartMessageID, csvWriter, honestClts, adversaryClts)
 	}
