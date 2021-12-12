@@ -4,3 +4,10 @@ scrape_configs:
       static_configs:
       - targets:
         - peer_master:9311
+        - adversary:9311
+        - faucet:9311
+        - vanilla1:9311
+        - vanilla2:9311
+        - vanilla3:9311
+        - vanilla4:9311
+        - vanilla5:9311
