@@ -172,6 +172,8 @@ func registerLocalMetrics() {
 
 	deps.Tangle.Scheduler.Events.MessageScheduled.Attach(events.NewClosure(func(messageID tangle.MessageID) {
 		increasePerComponentCounter(Scheduler)
+
+		updateOwnIssuedCounter(messageID)
 	}))
 
 	deps.Tangle.Booker.Events.MessageBooked.Attach(events.NewClosure(func(message tangle.MessageID) {

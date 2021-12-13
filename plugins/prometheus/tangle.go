@@ -8,6 +8,7 @@ import (
 
 var (
 	messageTips                  prometheus.Gauge
+	ownMessageIssuedCount        prometheus.Gauge
 	messagePerTypeCount          *prometheus.GaugeVec
 	messagePerComponentCount     *prometheus.GaugeVec
 	parentsCount                 *prometheus.GaugeVec
@@ -39,6 +40,11 @@ func registerTangleMetrics() {
 		}, []string{
 			"message_type",
 		})
+
+	ownMessageIssuedCount = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tangle_own_messages_issued_count",
+		Help: "number of messages created and issued by the node since its start",
+	})
 
 	parentsCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -127,6 +133,7 @@ func registerTangleMetrics() {
 	})
 
 	registry.MustRegister(messageTips)
+	registry.MustRegister(ownMessageIssuedCount)
 	registry.MustRegister(messagePerTypeCount)
 	registry.MustRegister(parentsCount)
 	registry.MustRegister(messagePerComponentCount)
@@ -149,6 +156,7 @@ func registerTangleMetrics() {
 
 func collectTangleMetrics() {
 	messageTips.Set(float64(metrics.MessageTips()))
+	ownMessageIssuedCount.Set(float64(metrics.OwnMessageIssued()))
 	msgCountPerPayload := metrics.MessageCountSinceStartPerPayload()
 	for payloadType, count := range msgCountPerPayload {
 		messagePerTypeCount.WithLabelValues(payloadType.String()).Set(float64(count))

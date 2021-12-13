@@ -107,6 +107,9 @@ var (
 	// current number of message tips.
 	messageTips atomic.Uint64
 
+	// current number of issued own messages.
+	ownMessageIssued atomic.Uint64
+
 	// total number of parents of all messages per parent type.
 	parentsCountPerType = make(map[tangle.ParentsType]uint64)
 
@@ -189,6 +192,11 @@ func MessageCountSinceStartPerComponentDashboard() map[ComponentType]uint64 {
 // MessageTips returns the actual number of tips in the message tangle.
 func MessageTips() uint64 {
 	return messageTips.Load()
+}
+
+// OwnMessageIssued returns the actual number of messages created and issued by this node.
+func OwnMessageIssued() uint64 {
+	return ownMessageIssued.Load()
 }
 
 // MessageRequestQueueSize returns the number of message requests the node currently has registered.
@@ -320,6 +328,16 @@ func measureMessageTips() {
 // increases the received MPS counter
 func increaseReceivedMPSCounter() {
 	mpsReceivedSinceLastMeasurement.Inc()
+}
+
+func updateOwnIssuedCounter(messageID tangle.MessageID) {
+	// increase if node is the owner
+	deps.Tangle.Storage.Message(messageID).Consume(func(message *tangle.Message) {
+		ownerPubKey := message.IssuerPublicKey()
+		if ownerPubKey == deps.Local.PublicKey() {
+			ownMessageIssued.Inc()
+		}
+	})
 }
 
 // measures the received MPS value
