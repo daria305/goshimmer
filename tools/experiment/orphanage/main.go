@@ -22,8 +22,7 @@ const (
 )
 
 var (
-	urls = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040", "http://localhost:8030", "http://localhost:8020"}
-
+	urls         = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040", "http://localhost:8030", "http://localhost:8020"}
 	adversaryUrl = []string{"http://localhost:8070"}
 
 	log = logger.New("orphanage")
@@ -73,9 +72,18 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 
 	fileName := fmt.Sprintf("orphanage-maxAge_%ds-k_%d-%s.csv", int(MaxParentAge.Seconds()), K, time.Now().UTC().Format(time.RFC3339))
 	csvWriter := createWriter(fileName, header)
+	defer csvWriter.Flush()
 
 	honestClts := utils.NewClients(urls, "honest")
 	adversaryClts := utils.NewClients(adversaryUrl, "adversary")
+	grafanaLinks := make([]string, 0)
+
+	// list Grafana dashboard links in log at the end of the experiment
+	defer func() {
+		for i, link := range grafanaLinks {
+			log.Infof("Experiment %d: %s", i, link)
+		}
+	}()
 
 	walkStartMessageID := tangle.EmptyMessageID
 	for expId := 0; expId < len(qRange); expId++ {
@@ -90,11 +98,13 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 			IdleSpamTime:         IdleSpamTime,
 			IdleHonestRate:       IdleHonestRate,
 		}
-		runSingleExperiment(params, walkStartMessageID, csvWriter, honestClts, adversaryClts)
+		_, link := runSingleExperiment(params, walkStartMessageID, csvWriter, honestClts, adversaryClts)
+		grafanaLinks = append(grafanaLinks, link)
+		log.Infof("Experiment finished %d: %s", expId, link)
 	}
 }
 
-func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients) (nextStartMsg tangle.MessageID) {
+func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients) (nextStartMsg tangle.MessageID, grafanaLink string) {
 	adversaryInfo, _ := adversaryClts.GetGoShimmerAPIs()[0].Info()
 	params.AdversaryID = adversaryInfo.IdentityIDShort
 
@@ -129,16 +139,19 @@ func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, 
 	honestClts.Spam(params.IdleHonestRate, MaxParentAge*2, "unit", wg)
 	wg.Wait()
 
+	grafanaLink = createGrafanaLinkForExperimentDuration(startTime, stopTime)
+
 	for idx, node := range honestClts.GetGoShimmerAPIs() {
 		// TODO make it async
 		// request orphanage data
 		log.Infof("Spamming has finished! Requesting orphanage data from honest nodes.")
+		diagnosticStart := time.Now()
 		resp, err := node.GetDiagnosticsOrphanage(tangle.EmptyMessageID, startTime, stopTime, params.MeasureTimes)
 		if err != nil {
 			log.Errorf("Error: %s, %s", resp.Error, err)
 			return
 		}
-		log.Infof("Response received from honest node nr %d", idx)
+		log.Infof("Response received from honest node nr %d, after %s", idx, time.Since(diagnosticStart).String())
 		requester := resp.CreatorNodeID
 		msgId, err := tangle.NewMessageID(resp.LastMessageID)
 		if err != nil {
@@ -168,4 +181,8 @@ func calculateCutoffs(startTime, stopTime time.Time, interval time.Duration) (me
 		measurePoints = append(measurePoints, currentTime)
 	}
 	return
+}
+
+func createGrafanaLinkForExperimentDuration(startTime, stopTime time.Time) string {
+	return fmt.Sprintf("Graphana: http://localhost:3000/d/kjOQZ2ZMs/goshimmer-debugging?orgId=1&from=%v000&to=%v000&inspect=80&inspectTab=data", startTime.Unix(), stopTime.Unix())
 }
