@@ -147,7 +147,10 @@ func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, 
 		}
 		nextStartMsg = msgId
 
-		resultLines := ParseResults(params, resp, requester)
+		resultLines, err := ParseResults(params, resp, requester)
+		if err != nil {
+			log.Error(err)
+		}
 		log.Infof("Writing to csv file, requester %s", requester)
 		err = csvWriter.WriteAll(resultLines)
 		if err != nil {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"github.com/cockroachdb/errors"
 	"github.com/iotaledger/goshimmer/packages/jsonmodels"
 	"os"
 	"path"
@@ -13,7 +14,7 @@ var (
 	resultsDir = "results"
 )
 
-func ParseResults(params *ExperimentParams, respData *jsonmodels.OrphanageResponse, requesterID string) [][]string {
+func ParseResults(params *ExperimentParams, respData *jsonmodels.OrphanageResponse, requesterID string) ([][]string, error) {
 	log.Infof("Parsing the results for requester %s", requesterID)
 	honestIssued, honestOrphaned, advIssued, advOrphaned := calculateOrphanage(respData.IssuedByNode, respData.OrphansByNode, params.AdversaryID)
 
@@ -22,10 +23,18 @@ func ParseResults(params *ExperimentParams, respData *jsonmodels.OrphanageRespon
 	times := append(params.MeasureTimes, params.StopTime)
 
 	csvLines := make([][]string, len(params.MeasureTimes)+1)
+
+	if len(honestIssued) == 0 {
+		return csvLines, errors.Errorf("Honest issued message list is empty! There are no results to parse.")
+	}
+	if len(advIssued) == 0 {
+		return csvLines, errors.Errorf("Adversary issued message list is empty! There are no results to parse.")
+	}
+
 	for i := range csvLines {
 		intervalStopTime := times[i]
 		var honestRate float64
-		if honestIssued[i] == 0 || len(honestIssued) == 0 {
+		if honestIssued[i] == 0 {
 			honestRate = 0
 		} else {
 			honestRate = float64(honestOrphaned[i]) / float64(honestIssued[i])
@@ -59,7 +68,7 @@ func ParseResults(params *ExperimentParams, respData *jsonmodels.OrphanageRespon
 
 		intervalStartTime = intervalStopTime
 	}
-	return csvLines
+	return csvLines, nil
 }
 
 func calculateOrphanage(issuedBy, orphanedBy map[string][]int, adversaryID string) ([]int, []int, []int, []int) {
