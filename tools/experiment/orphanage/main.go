@@ -70,9 +70,11 @@ type ExperimentParams struct {
 
 func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qRange []float64) {
 
-	fileName := fmt.Sprintf("orphanage-maxAge_%ds-k_%d-%s.csv", int(MaxParentAge.Seconds()), K, time.Now().UTC().Format(time.RFC3339))
+	fileName := fmt.Sprintf("orphanage-maxAge_%ds-k_%d-%s.csv", int(MaxParentAge.Seconds()), K, time.Now().Format("020106_030405PM"))
 	csvWriter := createWriter(fileName, header)
 	defer csvWriter.Flush()
+
+	log.Info("Experiment will take: %s", time.Duration(len(qRange))*MaxParentAge+time.Duration(2+len(qRange)-1)*IdleSpamTime)
 
 	honestClts := utils.NewClients(urls, "honest")
 	adversaryClts := utils.NewClients(adversaryUrl, "adversary")
@@ -105,6 +107,15 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 
 		log.Infof("Grafana link to all experiments: %s", createGrafanaLinkForExperimentDuration(expStart, time.Now()))
 	}
+}
+
+func idleSpamToRecoverTheNetwork(duration time.Duration, rate int, honestClts *utils.Clients) {
+	wg := &sync.WaitGroup{}
+
+	//  START IDLE ACTIVITY MESSAGES SPAM only honest nodes
+	log.Infof("Idle period for next %s, only honest activity messages, num of honest nodes: %d, rate per node: %d", duration.String(), len(honestClts.GetGoShimmerAPIs()), rate)
+	honestClts.Spam(rate, duration, "unit", wg)
+	wg.Wait()
 }
 
 func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients) (nextStartMsg tangle.MessageID, grafanaLink string) {
@@ -151,7 +162,7 @@ func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, 
 		diagnosticStart := time.Now()
 		resp, err := node.GetDiagnosticsOrphanage(tangle.EmptyMessageID, startTime, stopTime, params.MeasureTimes)
 		if err != nil {
-			log.Errorf("Error: %s, %s", resp.Error, err)
+			log.Error(err)
 			return
 		}
 		log.Infof("Response received from honest node nr %d, after %s", idx, time.Since(diagnosticStart).String())
@@ -188,4 +199,23 @@ func calculateCutoffs(startTime, stopTime time.Time, interval time.Duration) (me
 
 func createGrafanaLinkForExperimentDuration(startTime, stopTime time.Time) string {
 	return fmt.Sprintf("Graphana: http://localhost:3000/d/B7yT2rhnz/goshimmer-debugging?orgId=1&from=%v000&to=%v000&inspect=80&inspectTab=data", startTime.Unix(), stopTime.Unix())
+}
+
+func createQs(k int, start, step, stop float64) []float64 {
+	criticalVal := 1 - (1 / float64(k))
+	log.Infof("Critical value expected: %f for K=%d", criticalVal, k)
+	fracCriticalVal := make([]float64, 0)
+	for v := start; math.Round(v*100)/100 < stop; v += step {
+		fracCriticalVal = append(fracCriticalVal, math.Round(v*100)/100)
+	}
+	fracCriticalVal = append(fracCriticalVal, criticalVal)
+	n := len(fracCriticalVal)
+	qs := make([]float64, n)
+	for i := 0; i < n-1; i++ {
+		qs[i] = fracCriticalVal[i] * criticalVal
+	}
+	qs[n-1] = criticalVal
+
+	log.Infof("q parameters calculated: %v", qs)
+	return qs
 }

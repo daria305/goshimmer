@@ -80,12 +80,12 @@ func calculateOrphanage(issuedBy, orphanedBy map[string][]int, adversaryID strin
 	// end of each time range is endTime
 	// beginning of first time range is startTime, of each next time range is startTime + cutoff[i]
 
-	log.Infof("numberOfTimeRanges: ")
+	log.Debugf("numberOfTimeRanges: ")
 	for key := range issuedBy {
-		log.Infof("IssuedBy[%s] = %d", key, issuedBy[key])
+		log.Debugf("IssuedBy[%s] = %d", key, issuedBy[key])
 	}
 	for key := range orphanedBy {
-		log.Infof("orphanedBy[%s] = %d", key, orphanedBy[key])
+		log.Debugf("orphanedBy[%s] = %d", key, orphanedBy[key])
 	}
 	numberOfTimeRanges := len(issuedBy[adversaryID]) // num of startCutoff+1
 	honestIssued := make([]int, numberOfTimeRanges)

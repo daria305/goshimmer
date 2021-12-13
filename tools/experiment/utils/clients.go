@@ -52,7 +52,7 @@ func (c *Clients) GetClientAPIUrls() []string {
 }
 
 func (c *Clients) Spam(ratePerClient int, duration time.Duration, imif string, wg *sync.WaitGroup) {
-	log.Infof("Spamming with %s clients and rate %d mps has started!", c.name, ratePerClient)
+	log.Infof("Spamming with %s clients and rate %d mpm has started!", c.name, ratePerClient)
 	for cltNum := range c.GetGoShimmerAPIs() {
 		wg.Add(1)
 		go func(cltNum int) {
