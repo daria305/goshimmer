@@ -44,6 +44,8 @@ type Pledge struct {
 	Genesis bool
 	// Amount to use for the pledge, if zero, cfgPledgeTokenAmount is used.
 	Amount uint64
+	// pledge only access mana and consensus mana pledge to provided public key
+	ConsensusPledgeReplacement string
 }
 
 // Genesis holds information about the genesis output.
@@ -54,7 +56,7 @@ type Genesis struct {
 	Amount uint64
 }
 
-//// consensus integration test snapshot, use with cfgGenesisTokenAmount=800000 for mana distribution: 50%, 25%, 25%
+////// consensus integration test snapshot, use with cfgGenesisTokenAmount=800000 for mana distribution: 50%, 25%, 25%
 //var nodesToPledge = map[string]Pledge{
 //	// peer master
 //	"EYsaGXnUVA9aTYL9FwYEvoQ8d1HCJveQVL7vogu6pqCP": {Genesis: true},
@@ -81,27 +83,39 @@ type Genesis struct {
 //	}(),
 //}
 
-// Equally distributed snapshot internal testnet.
+//  orphanage experiment snapshot
 var nodesToPledge = map[string]Pledge{
-	"e3m6WPQXLyuUqEfSHmGVEs6qpyhWNJqtbquX65kFoJQ":  {}, // entrynode
-	"EGgbUaAnfXG2mBtGQwSPPVxLa8uC1hnNsxtnLYbHkm8B": {}, // bootstrap_01
-	"7PS8tJSjhyFMbUqbVE2pUideT6DQc2ovNv5hBDTkvUtm": {}, // vanilla_01
-	"3HqasBLjyqiYWeavLZoi1k1nrMVvGZDGj3EPkKHxzxdZ": {}, // drng_01
-	"85LVFFjYZj8JNwmD5BJFux3gVGsw9uT2frFrnQ8gm7dX": {}, // drng_02
-	"7Hk4Airu42Gcqm3JZDAL69DSdaksF9qfahppez9LZTJr": {}, // drng_03
-	"E3RmVjQHsisxxLY36AuRkV7Uceo1FReYWLMsCTEbDBeC": {}, // drng_04
-	"GRbfN6HDzFxWNwN6q4ixmTjDR5oS8XQc5zWbxxFFkBmw": {}, // drng_05
-	"12rLUHyF67rzqHgYR6Jxbi3GD5CTU7DaxwDQfmVYcwnV": func() Pledge { // faucet_01
-		seedBase58 := "D29LzzhHYGPjxtnx3LXFicmLhDVXyhW6379MugJHzSoH" // faucet seed
-		seedBytes, err := base58.Decode(seedBase58)
-		must(err)
-		address := seed.NewSeed(seedBytes).Address(0).Address()
-		fmt.Printf("Faucet addr %s", address)
-		return Pledge{
-			Address: address,
-		}
-	}(),
+	"EYsaGXnUVA9aTYL9FwYEvoQ8d1HCJveQVL7vogu6pqCP": {Genesis: true}, // peer master
+	"CHfU1NUf6ZvUKDQHTG2df53GR7CvuMFtyt7YymJ6DwS3": {},              // faucet
+	"8i93nSnHCVr9wpurgP1GWj8EoY4RX2nMKBRV7wNgXrj2": {},              // vanila1
+	"FWQRYbH3ntzw1qU8ragzNJ4wEdMqbQChyVvDj2krfnt9": {},              // vanila2
+	"BsGtoHVtP1yyoA2Gr51KjJgfgW2HUQX6sENXSovbswGK": {},              // vanila3
+	"24Gs4hDUzLxLoUTEvVuqzATotsPusm7asRRSzypvS9Go": { // adversary gets only access mana
+		ConsensusPledgeReplacement: "11111111111111111111111111111111111111111111", // no one gets adversary's consensus mana
+	},
 }
+
+//// Equally distributed snapshot internal testnet.
+//var nodesToPledge = map[string]Pledge{
+//	"e3m6WPQXLyuUqEfSHmGVEs6qpyhWNJqtbquX65kFoJQ":  {}, // entrynode
+//	"EGgbUaAnfXG2mBtGQwSPPVxLa8uC1hnNsxtnLYbHkm8B": {}, // bootstrap_01
+//	"7PS8tJSjhyFMbUqbVE2pUideT6DQc2ovNv5hBDTkvUtm": {}, // vanilla_01
+//	"3HqasBLjyqiYWeavLZoi1k1nrMVvGZDGj3EPkKHxzxdZ": {}, // drng_01
+//	"85LVFFjYZj8JNwmD5BJFux3gVGsw9uT2frFrnQ8gm7dX": {}, // drng_02
+//	"7Hk4Airu42Gcqm3JZDAL69DSdaksF9qfahppez9LZTJr": {}, // drng_03
+//	"E3RmVjQHsisxxLY36AuRkV7Uceo1FReYWLMsCTEbDBeC": {}, // drng_04
+//	"GRbfN6HDzFxWNwN6q4ixmTjDR5oS8XQc5zWbxxFFkBmw": {}, // drng_05
+//	"12rLUHyF67rzqHgYR6Jxbi3GD5CTU7DaxwDQfmVYcwnV": func() Pledge { // faucet_01
+//		seedBase58 := "D29LzzhHYGPjxtnx3LXFicmLhDVXyhW6379MugJHzSoH" // faucet seed
+//		seedBytes, err := base58.Decode(seedBase58)
+//		must(err)
+//		address := seed.NewSeed(seedBytes).Address(0).Address()
+//		fmt.Printf("Faucet addr %s", address)
+//		return Pledge{
+//			Address: address,
+//		}
+//	}(),
+//}
 
 func anyGenesisNodePledge() bool {
 	for _, pledge := range nodesToPledge {
@@ -116,11 +130,11 @@ type TransactionMap map[ledgerstate.TransactionID]ledgerstate.Record
 type AccessManaMap map[identity.ID]ledgerstate.AccessMana
 
 func init() {
-	flag.Uint64(cfgGenesisTokenAmount, 800000, "the amount of tokens to add to the genesis output") // we pledge this amount to peer master
+	flag.Uint64(cfgGenesisTokenAmount, 100000000000000, "the amount of tokens to add to the genesis output") // we pledge this amount to peer master
 	flag.String(cfgSnapshotFileName, defaultSnapshotFileName, "the name of the generated snapshot file")
 	// Most recent seed when checking ../integration-tests/assets :
 	flag.String(cfgSnapshotGenesisSeed, "7R1itJx5hVuo9w9hjg5cwKFmek4HMSoBDgJZN8hKGxih", "the genesis seed")
-	flag.Uint(cfgPledgeTokenAmount, 1000000000000000, "the amount of tokens to pledge to defined nodes (other than genesis)")
+	flag.Uint(cfgPledgeTokenAmount, 100000000000000, "the amount of tokens to pledge to defined nodes (other than genesis)")
 }
 
 func main() {
@@ -249,9 +263,10 @@ func pledgeToDefinedNodes(genesis *Genesis, tokensToPledge uint64, txMap Transac
 
 		case pledgeCfg.Address != nil:
 			output = ledgerstate.NewSigLockedColoredOutput(balances, pledgeCfg.Address)
+
 		}
 
-		pledge(pubKeyStr, pledgeAmount, inputIndex, output, txMap, aManaMap)
+		pledge(pubKeyStr, pledgeAmount, inputIndex, output, txMap, aManaMap, pledgeCfg.ConsensusPledgeReplacement)
 		inputIndex++
 	}
 }
@@ -259,18 +274,26 @@ func pledgeToDefinedNodes(genesis *Genesis, tokensToPledge uint64, txMap Transac
 // pledges the amount defined by output to the node ID derived from the given public key.
 // the transaction doing the pledging uses the given inputIndex to define the index of the output used in the genesis transaction.
 // the corresponding txs and mana maps are mutated with the generated records.
-func pledge(pubKeyStr string, tokensPledged uint64, inputIndex uint16, output *ledgerstate.SigLockedColoredOutput, txMap TransactionMap, aManaMap AccessManaMap) (identity.ID, ledgerstate.Record, *ledgerstate.Transaction) {
+func pledge(pubKeyStr string, tokensPledged uint64, inputIndex uint16, output *ledgerstate.SigLockedColoredOutput, txMap TransactionMap, aManaMap AccessManaMap, consensusPledgeTo string) (identity.ID, ledgerstate.Record, *ledgerstate.Transaction) {
 	pubKey, err := ed25519.PublicKeyFromString(pubKeyStr)
 	if err != nil {
 		panic(err)
 	}
 	nodeID := identity.NewID(pubKey)
+	nodeIDCons := identity.NewID(pubKey)
 
+	if consensusPledgeTo != "" {
+		replacementPubKey, err := ed25519.PublicKeyFromString(consensusPledgeTo)
+		if err != nil {
+			panic(err)
+		}
+		nodeIDCons = identity.NewID(replacementPubKey)
+	}
 	tx := ledgerstate.NewTransaction(ledgerstate.NewTransactionEssence(
 		0,
 		time.Unix(tangle.DefaultGenesisTime, 0),
 		nodeID,
-		nodeID,
+		nodeIDCons,
 		ledgerstate.NewInputs(ledgerstate.NewUTXOInput(ledgerstate.NewOutputID(ledgerstate.GenesisTransactionID, inputIndex))),
 		ledgerstate.NewOutputs(output),
 	), ledgerstate.UnlockBlocks{ledgerstate.NewReferenceUnlockBlock(0)})

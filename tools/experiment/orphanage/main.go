@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	urls         = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040", "http://localhost:8030", "http://localhost:8020"}
+	urls         = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040"}
 	adversaryUrl = []string{"http://localhost:8070"}
 
 	log = logger.New("orphanage")
@@ -85,6 +85,7 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 		}
 	}()
 
+	expStart := time.Now()
 	walkStartMessageID := tangle.EmptyMessageID
 	for expId := 0; expId < len(qRange); expId++ {
 		params := &ExperimentParams{
@@ -101,6 +102,8 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 		_, link := runSingleExperiment(params, walkStartMessageID, csvWriter, honestClts, adversaryClts)
 		grafanaLinks = append(grafanaLinks, link)
 		log.Infof("Experiment finished %d: %s", expId, link)
+
+		log.Infof("Grafana link to all experiments: %s", createGrafanaLinkForExperimentDuration(expStart, time.Now()))
 	}
 }
 
@@ -108,9 +111,9 @@ func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, 
 	adversaryInfo, _ := adversaryClts.GetGoShimmerAPIs()[0].Info()
 	params.AdversaryID = adversaryInfo.IdentityIDShort
 
-	// determine rates
-	honestRate := int(float64(params.Mps) * (1 - params.Q) / float64(len(honestClts.GetGoShimmerAPIs())))
-	adversaryRate := int(float64(params.Mps) * params.Q)
+	// determine rates in mpm
+	honestRate := int(float64(params.Mps) * (1 - params.Q) / float64(len(honestClts.GetGoShimmerAPIs())) * 60)
+	adversaryRate := int(float64(params.Mps) * params.Q * 60)
 
 	wg := &sync.WaitGroup{}
 
@@ -184,5 +187,5 @@ func calculateCutoffs(startTime, stopTime time.Time, interval time.Duration) (me
 }
 
 func createGrafanaLinkForExperimentDuration(startTime, stopTime time.Time) string {
-	return fmt.Sprintf("Graphana: http://localhost:3000/d/kjOQZ2ZMs/goshimmer-debugging?orgId=1&from=%v000&to=%v000&inspect=80&inspectTab=data", startTime.Unix(), stopTime.Unix())
+	return fmt.Sprintf("Graphana: http://localhost:3000/d/B7yT2rhnz/goshimmer-debugging?orgId=1&from=%v000&to=%v000&inspect=80&inspectTab=data", startTime.Unix(), stopTime.Unix())
 }

@@ -1,0 +1,35 @@
+new_seeds:
+    peer_master:
+    base58:8q491c3YWjbPwLmF2WD95YmCgh61j2kenCKHfGfByoWi
+    Identity - base58:4AeXyZ26e4G
+    Public Key - base58:EYsaGXnUVA9aTYL9FwYEvoQ8d1HCJveQVL7vogu6pqCP
+
+    faucet:
+    base58:3YX6e7AL28hHihZewKdq6CMkEYVsTJBLgRiprUNiNq5E
+    Identity - base58:dAnF7pQ6k7a
+    Public Key - base58:CHfU1NUf6ZvUKDQHTG2df53GR7CvuMFtyt7YymJ6DwS3
+
+    adversary:
+    base64:a2AYblfCGlCRSuK951UOMCmeyzYaq+VoC/WPIOtTBfQ=
+    base58:8E9cSEWj3wzaMg5jj9z6f3R1pWkjpdQad2Fjd7QHUcuh
+    Identity - base58:5qm2mHvqm2Q
+    Public Key - base58:24Gs4hDUzLxLoUTEvVuqzATotsPusm7asRRSzypvS9Go
+
+    vanila1:
+    base64:4+KJri00RK4ZL7Myr7XjA4magIvJOWJU34wvdhcpt2Y=
+    base58:GLZu7qJf5sufSunqjMdneWPqvp51kCf5CszWghqVDthB
+    Identity - base58:4pjCdM3LNpC
+    Public Key - base58:8i93nSnHCVr9wpurgP1GWj8EoY4RX2nMKBRV7wNgXrj2
+
+    vanila2:
+    base64:ouPcjP+K4ccjN9hfyQcdN19Ruw/ZqFiHJB28kS7Quz4=
+    base58:BxrZzsNobKg44jUoBYHCbD81qwa6iLZSe11ysoZLXy9o
+    Identity - base58:GVsK3ww5VAu
+    Public Key - base58:FWQRYbH3ntzw1qU8ragzNJ4wEdMqbQChyVvDj2krfnt9
+
+    vanila3:
+    base64:Q4D/ACEGweKsJ8eC1erS++dthKBFcu2invINDaPiPtw=
+    base58:5YWQETJeT31PTtefRb75z2QMZkT678xw5VrvCsoREPBy
+    Identity - base58:2NUGvtNRPDm
+    Public Key - base58:BsGtoHVtP1yyoA2Gr51KjJgfgW2HUQX6sENXSovbswGK
+

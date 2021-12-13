@@ -88,6 +88,7 @@ services:
       --adversary.orphanageEnabled=true
       --prometheus.bindAddress=0.0.0.0:9311
       --prometheus.processMetrics=false
+      --node.seed=base58:8E9cSEWj3wzaMg5jj9z6f3R1pWkjpdQad2Fjd7QHUcuh
     secrets:
       - goshimmer.config.json
       - goshimmer.message.snapshot.bin
@@ -113,6 +114,7 @@ services:
       --messageLayer.startSynced=true
       --prometheus.bindAddress=0.0.0.0:9311
       --prometheus.processMetrics=false
+      --node.seed=base58:8i93nSnHCVr9wpurgP1GWj8EoY4RX2nMKBRV7wNgXrj2
     secrets:
       - goshimmer.config.json
       - goshimmer.message.snapshot.bin
@@ -138,6 +140,7 @@ services:
       --messageLayer.startSynced=true
       --prometheus.bindAddress=0.0.0.0:9311
       --prometheus.processMetrics=false
+      --node.seed=base58:FWQRYbH3ntzw1qU8ragzNJ4wEdMqbQChyVvDj2krfnt9
     secrets:
       - goshimmer.config.json
       - goshimmer.message.snapshot.bin
@@ -163,6 +166,7 @@ services:
       --messageLayer.startSynced=true
       --prometheus.bindAddress=0.0.0.0:9311
       --prometheus.processMetrics=false
+      --node.seed=base58:BsGtoHVtP1yyoA2Gr51KjJgfgW2HUQX6sENXSovbswGK
     secrets:
       - goshimmer.config.json
       - goshimmer.message.snapshot.bin
@@ -170,56 +174,6 @@ services:
       - "8040:8080/tcp" # web API
       - "8041:8081/tcp" # dashboard
       - "6041:6061/tcp" # pprof
-    networks:
-      - shimmer
-    depends_on:
-      - peer_master
-  vanilla4:
-    build: *goshimmer_build
-    stop_grace_period: 1m
-    command: >
-      --config=/run/secrets/goshimmer.config.json
-      --database.directory=/tmp/mainnetdb
-      --node.enablePlugins=spammer,prometheus,"webapi tools endpoint"
-      --messageLayer.snapshot.file=/run/secrets/goshimmer.message.snapshot.bin
-      --messageLayer.snapshot.genesisNode=
-      --node.disablePlugins=portcheck,clock
-      --mana.snapshotResetTime=true
-      --messageLayer.startSynced=true
-      --prometheus.bindAddress=0.0.0.0:9311
-      --prometheus.processMetrics=false
-    secrets:
-      - goshimmer.config.json
-      - goshimmer.message.snapshot.bin
-    ports:
-      - "8030:8080/tcp" # web API
-      - "8031:8081/tcp" # dashboard
-      - "6031:6061/tcp" # pprof
-    networks:
-      - shimmer
-    depends_on:
-      - peer_master
-  vanilla5:
-    build: *goshimmer_build
-    stop_grace_period: 1m
-    command: >
-      --config=/run/secrets/goshimmer.config.json
-      --database.directory=/tmp/mainnetdb
-      --node.enablePlugins=spammer,prometheus,"webapi tools endpoint"
-      --messageLayer.snapshot.file=/run/secrets/goshimmer.message.snapshot.bin
-      --messageLayer.snapshot.genesisNode=
-      --node.disablePlugins=portcheck,clock
-      --mana.snapshotResetTime=true
-      --messageLayer.startSynced=true
-      --prometheus.bindAddress=0.0.0.0:9311
-      --prometheus.processMetrics=false
-    secrets:
-      - goshimmer.config.json
-      - goshimmer.message.snapshot.bin
-    ports:
-      - "8020:8080/tcp" # web API
-      - "8021:8081/tcp" # dashboard
-      - "6021:6061/tcp" # pprof
     networks:
       - shimmer
     depends_on:
