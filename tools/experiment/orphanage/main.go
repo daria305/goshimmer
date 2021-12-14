@@ -31,25 +31,8 @@ var (
 func main() {
 	qParams := createQs(K, 0.1, 0.1, 1)
 	RunOrphanageExperiment(K, Mps, AttackDuration, MaxParentAge, qParams)
-}
 
-func createQs(k int, start, step, stop float64) []float64 {
-	criticalVal := 1 - (1 / float64(k))
-	log.Infof("Critical value expected: %f for K=%d", criticalVal, k)
-	fracCriticalVal := make([]float64, 0)
-	for v := start; math.Round(v*100)/100 < stop; v += step {
-		fracCriticalVal = append(fracCriticalVal, math.Round(v*100)/100)
-	}
-	fracCriticalVal = append(fracCriticalVal, criticalVal)
-	n := len(fracCriticalVal)
-	qs := make([]float64, n)
-	for i := 0; i < n-1; i++ {
-		qs[i] = fracCriticalVal[i] * criticalVal
-	}
-	qs[n-1] = criticalVal
-
-	log.Infof("q parameters calculated: %v", qs)
-	return qs
+	//idleSpamToRecoverTheNetwork(time.Minute, 5, utils.NewClients(urls, "honest"))
 }
 
 type ExperimentParams struct {
@@ -150,41 +133,35 @@ func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, 
 	params.StopTime = stopTime
 
 	log.Infof("Idle spamming started")
-	honestClts.Spam(params.IdleHonestRate, MaxParentAge*2, "unit", wg)
+	honestClts.Spam(params.IdleHonestRate, IdleSpamTime, "unit", wg)
 	wg.Wait()
 
 	grafanaLink = createGrafanaLinkForExperimentDuration(startTime, stopTime)
 
-	for idx, node := range honestClts.GetGoShimmerAPIs() {
-		// TODO make it async
-		// request orphanage data
-		log.Infof("Spamming has finished! Requesting orphanage data from honest nodes.")
-		diagnosticStart := time.Now()
-		resp, err := node.GetDiagnosticsOrphanage(tangle.EmptyMessageID, startTime, stopTime, params.MeasureTimes)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		log.Infof("Response received from honest node nr %d, after %s", idx, time.Since(diagnosticStart).String())
-		requester := resp.CreatorNodeID
-		msgId, err := tangle.NewMessageID(resp.LastMessageID)
-		if err != nil {
-			log.Errorf("Failed to retrieve nextMessageID: %s", err.Error())
-			msgId = tangle.EmptyMessageID
-		}
-		nextStartMsg = msgId
+	apis := honestClts.GetGoShimmerAPIs()
+	csvMutex := sync.Mutex{}
+	resChan := make(chan [][]string, len(apis))
+	for idx, node := range apis {
+		responseAndParseResults(node, idx, params, resChan)
+	}
 
-		resultLines, err := ParseResults(params, resp, requester)
-		if err != nil {
-			log.Error(err)
+	// awaiting results of an experiment to be collected
+	select {
+	case resp := <-resChan:
+		if resp != nil {
+			func() {
+				csvMutex.Lock()
+				defer csvMutex.Unlock() // read the requester id from the first row of data
+				requesterID := resp[0][11]
+				log.Infof("Writing to csv file, requester %s", requesterID)
+				err := csvWriter.WriteAll(resp)
+				if err != nil {
+					log.Errorf("Failed to write results to csv file: %s", err.Error())
+					return
+				}
+				csvWriter.Flush()
+			}()
 		}
-		log.Infof("Writing to csv file, requester %s", requester)
-		err = csvWriter.WriteAll(resultLines)
-		if err != nil {
-			log.Errorf("Failed to write results to csv file: %s", err.Error())
-			return
-		}
-		csvWriter.Flush()
 	}
 
 	return
@@ -199,6 +176,34 @@ func calculateCutoffs(startTime, stopTime time.Time, interval time.Duration) (me
 
 func createGrafanaLinkForExperimentDuration(startTime, stopTime time.Time) string {
 	return fmt.Sprintf("Graphana: http://localhost:3000/d/B7yT2rhnz/goshimmer-debugging?orgId=1&from=%v000&to=%v000&inspect=80&inspectTab=data", startTime.Unix(), stopTime.Unix())
+}
+
+func responseAndParseResults(node *client.GoShimmerAPI, nodeIndex int, params *ExperimentParams, respChan chan<- [][]string) {
+	// request orphanage data
+	log.Infof("Spamming has finished! Requesting orphanage data from honest nodes.")
+	diagnosticStart := time.Now()
+	resp, err := node.GetDiagnosticsOrphanage(tangle.EmptyMessageID, params.StartTime, params.StopTime, params.MeasureTimes)
+	if err != nil {
+		log.Error(err)
+		respChan <- nil
+		return
+	}
+	log.Infof("Response received from honest node nr %d, after %s", nodeIndex, time.Since(diagnosticStart).String())
+	requester := resp.CreatorNodeID
+	_, err = tangle.NewMessageID(resp.LastMessageID)
+	if err != nil {
+		log.Errorf("Failed to retrieve nextMessageID: %s", err.Error())
+		//msgId = tangle.EmptyMessageID
+	}
+	//nextStartMsg = msgId
+
+	resultLines, err := ParseResults(params, resp, requester)
+	if err != nil {
+		log.Error(err)
+		respChan <- nil
+		return
+	}
+	respChan <- resultLines
 }
 
 func createQs(k int, start, step, stop float64) []float64 {
