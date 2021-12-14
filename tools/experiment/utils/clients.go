@@ -1,11 +1,17 @@
 package utils
 
 import (
+	"encoding/csv"
 	"github.com/iotaledger/goshimmer/client"
 	"github.com/iotaledger/goshimmer/tools/experiment/logger"
+	"io"
 	"net/http"
 	"sync"
 	"time"
+)
+
+const (
+	NetworkCheckFrequency = time.Second * 30
 )
 
 var log = logger.New("utils")
@@ -54,18 +60,36 @@ func (c *Clients) GetClientAPIUrls() []string {
 func (c *Clients) Spam(ratePerClient int, duration time.Duration, imif string, wg *sync.WaitGroup) {
 	log.Infof("Spamming with %s clients and rate %d mpm has started!", c.name, ratePerClient)
 	for cltNum := range c.GetGoShimmerAPIs() {
+
 		wg.Add(1)
-		go func(cltNum int) {
-			c.toggleSpammer(ratePerClient, cltNum, imif, true)
-			time.Sleep(duration)
+		c.toggleSpammer(ratePerClient, cltNum, imif, true)
+
+		finishSpam := func() {
 			c.toggleSpammer(ratePerClient, cltNum, imif, false)
 			wg.Done()
+		}
+
+		go func(cltNum int) {
+			for {
+				select {
+				case <-time.Tick(NetworkCheckFrequency):
+					if !c.areClientsStillAlive() {
+						log.Warnf("Client nr %d is dead. Stopping the spamer.", cltNum)
+						finishSpam()
+					}
+				case <-time.After(duration):
+					finishSpam()
+					return
+				}
+			}
 		}(cltNum)
 	}
+
+	log.Infof("get out of the spammer!")
 }
 
 func (c *Clients) toggleSpammer(ratePerClient int, cltNumber int, imif string, on bool) {
-	spamResp, err := c.GetGoShimmerAPIs()[cltNumber].ToggleSpammer(on, ratePerClient, "mpm", imif)
+	spamResp, err := c.GetGoShimmerAPIs()[cltNumber].ToggleSpammer(on, ratePerClient*60, "mpm", imif)
 	if err != nil {
 		log.Errorf("Error: %s", err)
 		return
@@ -73,7 +97,7 @@ func (c *Clients) toggleSpammer(ratePerClient int, cltNumber int, imif string, o
 	log.Debugf("StartSpamming with %s clt nr %d: %s", c.name, cltNumber, spamResp.Message)
 }
 
-func (c *Clients) isCltAlive(cltNumber int) bool {
+func (c *Clients) isCltAliveBySync(cltNumber int) bool {
 	alive := true
 	resp, err := c.GetGoShimmerAPIs()[cltNumber].Info()
 	if err != nil {
@@ -81,7 +105,7 @@ func (c *Clients) isCltAlive(cltNumber int) bool {
 		alive = false
 	} else {
 		synced := resp.TangleTime.Synced
-		log.Infof("%s clt nr %d sync status: %v", c.name, cltNumber, synced)
+		log.Debugf("%s clt nr %d sync status: %v", c.name, cltNumber, synced)
 		if !synced {
 			alive = false
 		}
@@ -89,9 +113,37 @@ func (c *Clients) isCltAlive(cltNumber int) bool {
 	return alive
 }
 
+func (c *Clients) isCltAliveByTips(cltNumber int) bool {
+	alive := true
+	resp, err := c.GetGoShimmerAPIs()[cltNumber].GetDiagnosticsTips()
+	if err != nil {
+		log.Errorf("Error: %s", err)
+		alive = false
+	} else {
+		numOfLines, _ := lineCount(resp)
+		log.Debugf("%s clt nr %d tip pool size: %v", c.name, cltNumber, numOfLines)
+		if numOfLines == 0 {
+			alive = false
+		}
+	}
+	return alive
+}
+
+func (c *Clients) areClientsStillAlive() bool {
+	log.Info("Checking the network status...")
+	c.RemoveDeadClts()
+
+	if len(c.GetGoShimmerAPIs()) == 0 {
+		return false
+	}
+	return true
+}
+
 func (c *Clients) RemoveDeadClts() {
 	for cltNum := range c.GetGoShimmerAPIs() {
-		if alive := c.isCltAlive(cltNum); !alive {
+		aliveBySync := c.isCltAliveBySync(cltNum)
+		aliveByTips := c.isCltAliveByTips(cltNum)
+		if !aliveBySync || !aliveByTips {
 			c.deadMu.Lock()
 			c.deadClients[cltNum] = true
 			c.deadMu.Unlock()
@@ -100,3 +152,32 @@ func (c *Clients) RemoveDeadClts() {
 }
 
 // endregion ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func IsNetworkAlive(honestClts *Clients, adversaryClts *Clients) bool {
+	isAlive := true
+	if areHonestNodesAlive := honestClts.areClientsStillAlive(); !areHonestNodesAlive {
+		isAlive = false
+		log.Warnf("Honest part of the network is dead. Stopping an experiment after data collection.")
+	}
+	if isAdversaryAlive := adversaryClts.areClientsStillAlive(); !isAdversaryAlive {
+		isAlive = false
+		log.Warnf("Adversary is dead. Stopping an experiment after data collection.")
+	}
+	return isAlive
+}
+
+// LineCount counts how many new line characters does the reader has
+func lineCount(f *csv.Reader) (lineCount int, err error) {
+	for {
+		lineCount++
+		_, err = f.Read()
+		if err == io.EOF {
+			err = nil
+			break
+		}
+		if err != nil {
+			break
+		}
+	}
+	return
+}
