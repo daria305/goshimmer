@@ -86,6 +86,6 @@
     "tipLifeGracePeriodDiff": "5s"
   },
   "solidifier": {
-    "maxParentsTimeDifference": "1m"
+    "maxParentsTimeDifference": "1h"
   }
 }

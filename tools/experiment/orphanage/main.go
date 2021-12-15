@@ -16,14 +16,15 @@ import (
 const (
 	ResponseTimeout = time.Minute * 2
 
-	MaxParentAge         = time.Minute
+	MaxParentAge         = time.Hour
 	K                    = 2
-	AttackDuration       = 10
+	AttackDuration       = 1
 	MeasurementsInterval = MaxParentAge / 6
 	IdleSpamTime         = MaxParentAge
 	IdleHonestRate       = 1
 
-	CustomDirName = "equalSnap_orp"
+	CustomDirName    = "equalSnap_orp"
+	MeasureOrphanage = true
 )
 
 var (
@@ -126,7 +127,7 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 			log.Infof("Experiment finished , the network is down after %s", time.Since(expStart).String())
 			break
 		}
-		_, link := runSingleExperiment(params, csvWriter, honestClts, adversaryClts)
+		_, link := runSingleExperiment(params, csvWriter, honestClts, adversaryClts, MeasureOrphanage)
 		grafanaLinks = append(grafanaLinks, link)
 		log.Infof("Experiment finished %d: %s", expId, link)
 		// update nextMsgID for orphanage API walk, we use second id from more than two max parent age checks
@@ -143,7 +144,7 @@ func IdleSpamToRecoverTheNetwork(duration time.Duration, rate int) {
 	honestClts.Spam(rate, duration, "poisson")
 }
 
-func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients) (nextStartMsg tangle.MessageID, grafanaLink string) {
+func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients, measureOrphanage bool) (nextStartMsg tangle.MessageID, grafanaLink string) {
 	adversaryInfo, _ := adversaryClts.GetGoShimmerAPIs()[0].Info()
 	params.AdversaryID = adversaryInfo.IdentityIDShort
 	honestRate, adversaryRate := calculateRates(params, honestClts)
@@ -157,6 +158,12 @@ func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honest
 
 	grafanaLink = createGrafanaLinkForExperimentDuration(params.StartTime, params.StopTime)
 
+	requestAndParseOrphanageData(params, csvWriter, honestClts)
+
+	return
+}
+
+func requestAndParseOrphanageData(params *ExperimentParams, csvWriter *csv.Writer, honestClts *utils.Clients) {
 	apis := honestClts.GetGoShimmerAPIs()
 	csvMutex := sync.Mutex{}
 	resChan := make(chan [][]string, len(apis))
@@ -184,8 +191,6 @@ func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honest
 	case <-time.After(ResponseTimeout):
 		log.Infof("Response not received in time")
 	}
-
-	return
 }
 
 func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate int, adversaryClts *utils.Clients, adversaryRate int) {

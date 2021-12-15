@@ -455,7 +455,7 @@
           "exemplar": true,
           "expr": "irate(tangle_message_finalization_time{messageType=\"DataMessage\"}[5m]) / irate(tangle_message_finalized_count{messageType=\"DataMessage\"}[5m])",
           "interval": "",
-          "legendFormat": "Msg finalization {$instance}",
+          "legendFormat": "Msg finalization {{instance}}",
           "refId": "A"
         }
       ],
