@@ -18,11 +18,10 @@ const (
 
 	MaxParentAge         = time.Minute
 	K                    = 2
-	Mps                  = 100
-	AttackDuration       = 12
+	AttackDuration       = 10
 	MeasurementsInterval = MaxParentAge / 6
 	IdleSpamTime         = MaxParentAge
-	IdleHonestRate       = 3
+	IdleHonestRate       = 1
 
 	CustomDirName = "equalSnap_orp"
 )
@@ -33,21 +32,35 @@ var (
 	log          = logger.New("orphanage")
 
 	//Qs = []float64{0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.48, 0.5, 0.53, 0.55}
-	Qs = []float64{0.5}
+	Qs      = []float64{0.48, 0.50, 0.55}
+	MpsList = []int{30, 40, 50, 60, 70, 80}
+	mps     = 0
 )
 
-func init() {
+func initDir() {
 	paths.CreateResultsDir(K, CustomDirName)
 	log.Infof("Created results foldes: %s", paths.FinalPath)
 	log.Infof("Parameters: \n MaxParentAge = %s\n K %d \n Mps = %d\n AttackDuration = %d \n MeasurementsInterval = %s\n IdleSpamTime = %s\n IdleHonestRate = %d\n Q = %v\n",
-		MaxParentAge.String(), K, Mps, AttackDuration, MeasurementsInterval.String(), IdleSpamTime.String(), IdleHonestRate, Qs)
+		MaxParentAge.String(), K, mps, AttackDuration, MeasurementsInterval.String(), IdleSpamTime.String(), IdleHonestRate, Qs)
 }
 
 func main() {
-	RunOrphanageExperiment(K, Mps, AttackDuration, MaxParentAge, Qs)
+	RunExperimentPerMps()
 
 	// IdleSpamToRecoverTheNetwork(time.Minute, 10)
-	paths.MoveLogFile()
+
+}
+
+func RunExperimentPerMps() {
+
+	for _, m := range MpsList {
+		mps = m
+		initDir()
+
+		RunOrphanageExperiment(K, mps, AttackDuration, MaxParentAge, Qs)
+		paths.MoveLogFile()
+	}
+
 }
 
 type ExperimentParams struct {
