@@ -33,3 +33,15 @@ new_seeds:
     Identity - base58:2NUGvtNRPDm
     Public Key - base58:BsGtoHVtP1yyoA2Gr51KjJgfgW2HUQX6sENXSovbswGK
 
+    vanila4:
+    base64:ZwQU8aF5WZ8VeSQ6UUvxe7AgcXU7NLRKpGYNnbY1l9E=
+    base58:7w8bxyDp8fKaWeb7TpTvoWoFAvC9Y7Vayi1wRioR4PSQ
+    Identity - base58:UWUDXzXPGNk
+    Public Key - base58:Bo6kxNB8hLay7PAkEPQcrbs27PE2mhZfqsdNX3pzkHj1
+
+    vanila5:
+    base64:T7kfQ24p76QY61Pyk4LatLcf5ULBm8vhq0eoGtQSC1g=
+    base58:6NCw17KW3mZbmXTKUngQXr5SCKQg1Xsbq7nYJWx4vdpB
+    Identity - base58:44nPFAPtxaJ
+    Public Key - base58:GSZx7Gz3xBA2fakeqRiCJqfw2nHM4hXBt3UtCHqfHPKs
+

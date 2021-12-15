@@ -83,15 +83,17 @@ type Genesis struct {
 //	}(),
 //}
 
-//  orphanage experiment snapshot
+////  orphanage experiment snapshot
 var nodesToPledge = map[string]Pledge{
 	"EYsaGXnUVA9aTYL9FwYEvoQ8d1HCJveQVL7vogu6pqCP": {Genesis: true}, // peer master
 	"CHfU1NUf6ZvUKDQHTG2df53GR7CvuMFtyt7YymJ6DwS3": {},              // faucet
 	"8i93nSnHCVr9wpurgP1GWj8EoY4RX2nMKBRV7wNgXrj2": {},              // vanila1
 	"FWQRYbH3ntzw1qU8ragzNJ4wEdMqbQChyVvDj2krfnt9": {},              // vanila2
 	"BsGtoHVtP1yyoA2Gr51KjJgfgW2HUQX6sENXSovbswGK": {},              // vanila3
+	"Bo6kxNB8hLay7PAkEPQcrbs27PE2mhZfqsdNX3pzkHj1": {},              // vanila4
+	"GSZx7Gz3xBA2fakeqRiCJqfw2nHM4hXBt3UtCHqfHPKs": {},              // vanila5
 	"24Gs4hDUzLxLoUTEvVuqzATotsPusm7asRRSzypvS9Go": { // adversary gets only access mana
-		ConsensusPledgeReplacement: "11111111111111111111111111111111111111111111", // no one gets adversary's consensus mana
+		ConsensusPledgeReplacement: "CHfU1NUf6ZvUKDQHTG2df53GR7CvuMFtyt7YymJ6DwS3", // no one gets adversary's consensus mana
 	},
 }
 
