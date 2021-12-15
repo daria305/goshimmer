@@ -6,6 +6,7 @@ import (
 	"github.com/iotaledger/goshimmer/client"
 	"github.com/iotaledger/goshimmer/packages/tangle"
 	"github.com/iotaledger/goshimmer/tools/experiment/logger"
+	"github.com/iotaledger/goshimmer/tools/experiment/paths"
 	"github.com/iotaledger/goshimmer/tools/experiment/utils"
 	"math"
 	"sync"
@@ -17,26 +18,36 @@ const (
 
 	MaxParentAge         = time.Minute
 	K                    = 2
-	Mps                  = 50
-	AttackDuration       = 8
-	MeasurementsInterval = MaxParentAge / 4
-	IdleSpamTime         = MaxParentAge * 1
-	IdleHonestRate       = 2
+	Mps                  = 100
+	AttackDuration       = 12
+	MeasurementsInterval = MaxParentAge / 6
+	IdleSpamTime         = MaxParentAge
+	IdleHonestRate       = 3
+
+	CustomDirName = "equalSnap_orp"
 )
 
 var (
 	urls         = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040", "http://localhost:8030", "http://localhost:8020"}
 	adversaryUrl = []string{"http://localhost:8070"}
+	log          = logger.New("orphanage")
 
-	log = logger.New("orphanage")
+	//Qs = []float64{0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.48, 0.5, 0.53, 0.55}
+	Qs = []float64{0.5}
 )
 
+func init() {
+	paths.CreateResultsDir(K, CustomDirName)
+	log.Infof("Created results foldes: %s", paths.FinalPath)
+	log.Infof("Parameters: \n MaxParentAge = %s\n K %d \n Mps = %d\n AttackDuration = %d \n MeasurementsInterval = %s\n IdleSpamTime = %s\n IdleHonestRate = %d\n Q = %v\n",
+		MaxParentAge.String(), K, Mps, AttackDuration, MeasurementsInterval.String(), IdleSpamTime.String(), IdleHonestRate, Qs)
+}
+
 func main() {
-	//qParams := createQs(K, 0.9, 0.1, 1)
-	qParams := []float64{0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.48, 0.5, 0.53, 0.55}
-	RunOrphanageExperiment(K, Mps, AttackDuration, MaxParentAge, qParams)
+	RunOrphanageExperiment(K, Mps, AttackDuration, MaxParentAge, Qs)
 
 	// IdleSpamToRecoverTheNetwork(time.Minute, 10)
+	paths.MoveLogFile()
 }
 
 type ExperimentParams struct {
@@ -74,9 +85,8 @@ func NewExperimentParams(k int, mps int, duration int, maxParentAge time.Duratio
 }
 
 func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qRange []float64) {
-
-	fileName := fmt.Sprintf("orphanage-maxAge_%ds-k_%d-%s.csv", int(MaxParentAge.Seconds()), K, time.Now().Format("020106_030405PM"))
-	csvWriter := createWriter(fileName, header)
+	fileName := fmt.Sprintf("orphanage-age_%ds-k_%d-mps_%d-ad_%d-%s.csv", int(MaxParentAge.Seconds()), K, mps, AttackDuration, time.Now().Format("020106_030405PM"))
+	csvWriter := createWriter(paths.FinalPath, fileName, header)
 	defer csvWriter.Flush()
 
 	log.Info("Experiment will take: %s", time.Duration(len(qRange))*MaxParentAge+time.Duration(2+len(qRange)-1)*IdleSpamTime)
@@ -107,7 +117,7 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 		grafanaLinks = append(grafanaLinks, link)
 		log.Infof("Experiment finished %d: %s", expId, link)
 		// update nextMsgID for orphanage API walk, we use second id from more than two max parent age checks
-		walkStartMessageID = params.WalkStartMessageID
+		//walkStartMessageID = params.WalkStartMessageID
 	}
 	log.Infof("Grafana link to all experiments: %s", createGrafanaLinkForExperimentDuration(expStart, time.Now()))
 }
@@ -173,7 +183,7 @@ func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients,
 	log.Infof("Starting an orphanage attack with q=%f, mps=%d, advNodeID: %s, num of honest nodes: %d", params.Q, params.Mps, params.AdversaryID, len(honestClts.GetGoShimmerAPIs()))
 	wg.Add(2)
 	go func() {
-		honestClts.Spam(honestRate, attackDuration, "poisson")
+		honestClts.Spam(honestRate, attackDuration, "unit")
 		wg.Done()
 	}()
 	go func() {

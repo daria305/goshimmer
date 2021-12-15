@@ -10,8 +10,7 @@ import (
 )
 
 var (
-	header     = []string{"expId", "q", "mps", "honestOrphanageRate", "advOrphanageRate", "totalOrphans", "honestOrphans", "advOrphans", "totalIssued", "honestIssued", "advIssued", "requester", "attackDuration", "intervalNum", "intervalStart", "intervalStop"}
-	resultsDir = "results"
+	header = []string{"expId", "q", "mps", "honestOrphanageRate", "advOrphanageRate", "totalOrphans", "honestOrphans", "advOrphans", "totalIssued", "honestIssued", "advIssued", "requester", "attackDuration", "intervalNum", "intervalStart", "intervalStop"}
 )
 
 func ParseResults(params *ExperimentParams, respData *jsonmodels.OrphanageResponse, requesterID string) ([][]string, error) {
@@ -118,16 +117,8 @@ func countMsgBy(issuedBy map[string][]int, issued []int, issuer string) {
 	}
 }
 
-func createWriter(fileName string, header []string) *csv.Writer {
-	// create directory for results if not exists
-	if _, err := os.Stat(resultsDir); os.IsNotExist(err) {
-		err = os.Mkdir(resultsDir, 0700)
-		if err != nil {
-			log.Error(err)
-		}
-	}
-
-	file, err := os.Create(path.Join(resultsDir, fileName))
+func createWriter(dirPath string, fileName string, header []string) *csv.Writer {
+	file, err := os.Create(path.Join(dirPath, fileName))
 	if err != nil {
 		panic(err)
 	}
