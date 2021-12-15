@@ -46,7 +46,7 @@ func diagnosticOrphanage(c echo.Context) error {
 		measurementsNumber := len(measurePoints)
 		if timestamp.After(startTime) && timestamp.Before(stopTime) {
 			createInnerMapIfFirstSeen(issuedCounts, orphanCounts, issuerID, measurementsNumber)
-			lastMsgTimestamp, timestamp, lastMsgID, msgID = updateLastMessageID(lastMsgTimestamp, timestamp, lastMsgID, msgID)
+			lastMsgTimestamp, timestamp, lastMsgID, msgID = updateLastMessageID(lastMsgTimestamp, timestamp, lastMsgID, msgID, stopTime, middlePoints)
 			// count messages within time intervals between two consecutive measurement points
 			for intervalNum, currentEndTime := range measurePoints {
 				if timestamp.After(currentStartTime) && timestamp.Before(currentEndTime) {
@@ -82,8 +82,14 @@ func createInnerMapIfFirstSeen(issuerCounts, orphanageCounts map[string][]int, k
 	}
 }
 
-func updateLastMessageID(lastMsgTimestamp, timestamp time.Time, lastMsgID, msgID tangle.MessageID) (time.Time, time.Time, tangle.MessageID, tangle.MessageID) {
-	if lastMsgTimestamp.Before(timestamp) {
+func updateLastMessageID(lastMsgTimestamp, timestamp time.Time, lastMsgID, msgID tangle.MessageID, stopTime time.Time, middlePoints []time.Time) (time.Time, time.Time, tangle.MessageID, tangle.MessageID) {
+	// cutoff time forces lastMsg to be older than 1/2th of measurement time
+	cutOffTime := stopTime
+	if len(middlePoints) > 0 {
+		cutOffTime = middlePoints[len(middlePoints)/2]
+	}
+
+	if lastMsgTimestamp.Before(timestamp) && timestamp.Before(cutOffTime) {
 		deps.Tangle.Storage.MessageMetadata(msgID).Consume(func(messageMetadata *tangle.MessageMetadata) {
 			// last message is updated only if it is confirmed, so it could be used as a starting point of next API call starting messageID
 			if messageMetadata.GradeOfFinality() == gof.High {

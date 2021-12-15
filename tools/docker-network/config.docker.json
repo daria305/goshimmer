@@ -83,7 +83,7 @@
   },
   "tipManager": {
     "maxParentsCount": 2,
-    "tipLifeGracePeriodDiff": "0s"
+    "tipLifeGracePeriodDiff": "5s"
   },
   "solidifier": {
     "maxParentsTimeDifference": "1m"

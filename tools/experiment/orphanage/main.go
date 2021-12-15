@@ -53,9 +53,11 @@ type ExperimentParams struct {
 	AdversaryID          string
 	StartTime            time.Time // start time of an attack
 	StopTime             time.Time // stop time of an attack
+	WalkStartMessageID   tangle.MessageID
+	walkMsgMu            sync.Mutex
 }
 
-func NewExperimentParams(k int, mps int, duration int, maxParentAge time.Duration, qRange []float64, expId int) *ExperimentParams {
+func NewExperimentParams(k int, mps int, duration int, maxParentAge time.Duration, startMsgID tangle.MessageID, qRange []float64, expId int) *ExperimentParams {
 	params := &ExperimentParams{
 		ExpId:                expId,
 		MaxParentAge:         maxParentAge,
@@ -66,6 +68,7 @@ func NewExperimentParams(k int, mps int, duration int, maxParentAge time.Duratio
 		MeasurementsInterval: MeasurementsInterval,
 		IdleSpamTime:         IdleSpamTime,
 		IdleHonestRate:       IdleHonestRate,
+		WalkStartMessageID:   startMsgID,
 	}
 	return params
 }
@@ -91,17 +94,20 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 
 	expStart := time.Now()
 	walkStartMessageID := tangle.EmptyMessageID
+
 	for expId := 0; expId < len(qRange); expId++ {
 		log.Infof("Experiment nr %d has started.", expId)
-		params := NewExperimentParams(k, mps, duration, maxParentAge, qRange, expId)
+		params := NewExperimentParams(k, mps, duration, maxParentAge, walkStartMessageID, qRange, expId)
 
 		if !utils.IsNetworkAlive(honestClts, adversaryClts) {
 			log.Infof("Experiment finished , the network is down after %s", time.Since(expStart).String())
 			break
 		}
-		_, link := runSingleExperiment(params, walkStartMessageID, csvWriter, honestClts, adversaryClts)
+		_, link := runSingleExperiment(params, csvWriter, honestClts, adversaryClts)
 		grafanaLinks = append(grafanaLinks, link)
 		log.Infof("Experiment finished %d: %s", expId, link)
+		// update nextMsgID for orphanage API walk, we use second id from more than two max parent age checks
+		walkStartMessageID = params.WalkStartMessageID
 	}
 	log.Infof("Grafana link to all experiments: %s", createGrafanaLinkForExperimentDuration(expStart, time.Now()))
 }
@@ -114,7 +120,7 @@ func IdleSpamToRecoverTheNetwork(duration time.Duration, rate int) {
 	honestClts.Spam(rate, duration, "poisson")
 }
 
-func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients) (nextStartMsg tangle.MessageID, grafanaLink string) {
+func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients) (nextStartMsg tangle.MessageID, grafanaLink string) {
 	adversaryInfo, _ := adversaryClts.GetGoShimmerAPIs()[0].Info()
 	params.AdversaryID = adversaryInfo.IdentityIDShort
 	honestRate, adversaryRate := calculateRates(params, honestClts)
@@ -213,6 +219,7 @@ func responseAndParseResults(node *client.GoShimmerAPI, nodeIndex int, params *E
 	// request orphanage data
 	log.Infof("Requesting orphanage data from honest nodes.")
 	diagnosticStart := time.Now()
+	nextStartMessageID := tangle.EmptyMessageID
 	resp, err := node.GetDiagnosticsOrphanage(tangle.EmptyMessageID, params.StartTime, params.StopTime, params.MeasureTimes)
 	if err != nil {
 		log.Error(err)
@@ -224,10 +231,10 @@ func responseAndParseResults(node *client.GoShimmerAPI, nodeIndex int, params *E
 	_, err = tangle.NewMessageID(resp.LastMessageID)
 	if err != nil {
 		log.Errorf("Failed to retrieve nextMessageID: %s", err.Error())
-		//msgId = tangle.EmptyMessageID
+		nextStartMessageID = tangle.EmptyMessageID
 	}
-	//nextStartMsg = msgId
-
+	// next orphanage API response will overwrite this msgID, but we don't care because we need only one
+	addNextMsgID(nextStartMessageID, params)
 	resultLines, err := ParseResults(params, resp, requester)
 	if err != nil {
 		log.Error(err)
@@ -235,6 +242,12 @@ func responseAndParseResults(node *client.GoShimmerAPI, nodeIndex int, params *E
 		return
 	}
 	respChan <- resultLines
+}
+
+func addNextMsgID(msgID tangle.MessageID, params *ExperimentParams) {
+	params.walkMsgMu.Lock()
+	params.WalkStartMessageID = msgID
+	params.walkMsgMu.Unlock()
 }
 
 func createQs(k int, start, step, stop float64) []float64 {
