@@ -57,35 +57,39 @@ func (c *Clients) GetClientAPIUrls() []string {
 	return c.urls
 }
 
-func (c *Clients) Spam(ratePerClient int, duration time.Duration, imif string, wg *sync.WaitGroup) {
+func (c *Clients) Spam(ratePerClient int, duration time.Duration, imif string) {
 	log.Infof("Spamming with %s clients and rate %d mpm has started!", c.name, ratePerClient)
-	for cltNum := range c.GetGoShimmerAPIs() {
+	clts := c.GetGoShimmerAPIs()
+	inWg := &sync.WaitGroup{}
 
-		wg.Add(1)
+	for cltNum := range clts {
+		inWg.Add(1)
 		c.toggleSpammer(ratePerClient, cltNum, imif, true)
+		timer := time.NewTimer(duration)
 
-		finishSpam := func() {
+		finishSpam := func(cltNum int) {
 			c.toggleSpammer(ratePerClient, cltNum, imif, false)
-			wg.Done()
+			inWg.Done()
+			timer.Stop()
 		}
-
 		go func(cltNum int) {
 			for {
 				select {
 				case <-time.Tick(NetworkCheckFrequency):
 					if !c.areClientsStillAlive() {
 						log.Warnf("Client nr %d is dead. Stopping the spamer.", cltNum)
-						finishSpam()
+						finishSpam(cltNum)
+
+						return
 					}
-				case <-time.After(duration):
-					finishSpam()
+				case <-timer.C:
+					finishSpam(cltNum)
 					return
 				}
 			}
 		}(cltNum)
 	}
-
-	log.Infof("get out of the spammer!")
+	inWg.Wait()
 }
 
 func (c *Clients) toggleSpammer(ratePerClient int, cltNumber int, imif string, on bool) {
@@ -130,7 +134,6 @@ func (c *Clients) isCltAliveByTips(cltNumber int) bool {
 }
 
 func (c *Clients) areClientsStillAlive() bool {
-	log.Info("Checking the network status...")
 	c.RemoveDeadClts()
 
 	if len(c.GetGoShimmerAPIs()) == 0 {
@@ -154,6 +157,7 @@ func (c *Clients) RemoveDeadClts() {
 // endregion ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func IsNetworkAlive(honestClts *Clients, adversaryClts *Clients) bool {
+	log.Info("Checking the network status...")
 	isAlive := true
 	if areHonestNodesAlive := honestClts.areClientsStillAlive(); !areHonestNodesAlive {
 		isAlive = false

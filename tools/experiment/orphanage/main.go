@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	ResponseTimeout = time.Minute * 2
+
 	MaxParentAge         = time.Minute
 	K                    = 2
 	Mps                  = 50
@@ -23,14 +25,15 @@ const (
 )
 
 var (
-	urls         = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040"}
+	urls         = []string{"http://localhost:8080", "http://localhost:8090", "http://localhost:8060", "http://localhost:8050", "http://localhost:8040", "http://localhost:8030", "http://localhost:8020"}
 	adversaryUrl = []string{"http://localhost:8070"}
 
 	log = logger.New("orphanage")
 )
 
 func main() {
-	qParams := createQs(K, 0.1, 0.1, 1)
+	//qParams := createQs(K, 0.9, 0.1, 1)
+	qParams := []float64{0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.48, 0.5, 0.53, 0.55}
 	RunOrphanageExperiment(K, Mps, AttackDuration, MaxParentAge, qParams)
 
 	// IdleSpamToRecoverTheNetwork(time.Minute, 10)
@@ -105,26 +108,23 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 
 func IdleSpamToRecoverTheNetwork(duration time.Duration, rate int) {
 	honestClts := utils.NewClients(urls, "honest")
-	wg := &sync.WaitGroup{}
 
 	//  START IDLE ACTIVITY MESSAGES SPAM only honest nodes
 	log.Infof("Idle period for next %s, only honest activity messages, num of honest nodes: %d, rate per node: %d", duration.String(), len(honestClts.GetGoShimmerAPIs()), rate)
-	honestClts.Spam(rate, duration, "unit", wg)
-	wg.Wait()
+	honestClts.Spam(rate, duration, "poisson")
 }
 
 func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, csvWriter *csv.Writer, honestClts *utils.Clients, adversaryClts *utils.Clients) (nextStartMsg tangle.MessageID, grafanaLink string) {
 	adversaryInfo, _ := adversaryClts.GetGoShimmerAPIs()[0].Info()
 	params.AdversaryID = adversaryInfo.IdentityIDShort
 	honestRate, adversaryRate := calculateRates(params, honestClts)
-	wg := &sync.WaitGroup{}
 
-	idleSpam(params, honestClts, wg)
+	idleSpam(params, honestClts)
 
 	// START ORPHANAGE ATTACK
-	performOrphanageAttack(params, honestClts, honestRate, wg, adversaryClts, adversaryRate)
+	performOrphanageAttack(params, honestClts, honestRate, adversaryClts, adversaryRate)
 
-	idleSpam(params, honestClts, wg)
+	idleSpam(params, honestClts)
 
 	grafanaLink = createGrafanaLinkForExperimentDuration(params.StartTime, params.StopTime)
 
@@ -159,24 +159,31 @@ func runSingleExperiment(params *ExperimentParams, startMsgID tangle.MessageID, 
 	return
 }
 
-func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate int, wg *sync.WaitGroup, adversaryClts *utils.Clients, adversaryRate int) {
+func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate int, adversaryClts *utils.Clients, adversaryRate int) {
+	wg := &sync.WaitGroup{}
 	startTime := time.Now()
 	attackDuration := time.Duration(params.AttackDuration) * params.MaxParentAge
 
 	log.Infof("Starting an orphanage attack with q=%f, mps=%d, advNodeID: %s, num of honest nodes: %d", params.Q, params.Mps, params.AdversaryID, len(honestClts.GetGoShimmerAPIs()))
-	honestClts.Spam(honestRate, attackDuration, "unit", wg)
-	adversaryClts.Spam(adversaryRate, attackDuration, "unit", wg)
+	wg.Add(2)
+	go func() {
+		honestClts.Spam(honestRate, attackDuration, "poisson")
+		wg.Done()
+	}()
+	go func() {
+		adversaryClts.Spam(adversaryRate, attackDuration, "unit")
+		wg.Done()
+	}()
 	wg.Wait()
 
 	stopTime := time.Now()
 	updateParamsAfterExpFinishes(params, startTime, stopTime)
+	log.Info("Attack finishes")
 }
 
-func idleSpam(params *ExperimentParams, honestClts *utils.Clients, wg *sync.WaitGroup) {
+func idleSpam(params *ExperimentParams, honestClts *utils.Clients) {
 	log.Infof("Idle period for next %s, only honest activity messages, num of honest nodes: %d, rate per node: %d", params.IdleSpamTime.String(), len(honestClts.GetGoShimmerAPIs()), params.IdleHonestRate)
-	honestClts.Spam(params.IdleHonestRate, params.IdleSpamTime, "unit", wg)
-	log.Info("idle spam finishes")
-	wg.Wait()
+	honestClts.Spam(params.IdleHonestRate, params.IdleSpamTime, "poisson")
 }
 
 func calculateRates(params *ExperimentParams, honestClts *utils.Clients) (int, int) {
@@ -204,7 +211,7 @@ func createGrafanaLinkForExperimentDuration(startTime, stopTime time.Time) strin
 
 func responseAndParseResults(node *client.GoShimmerAPI, nodeIndex int, params *ExperimentParams, respChan chan<- [][]string) {
 	// request orphanage data
-	log.Infof("Spamming has finished! Requesting orphanage data from honest nodes.")
+	log.Infof("Requesting orphanage data from honest nodes.")
 	diagnosticStart := time.Now()
 	resp, err := node.GetDiagnosticsOrphanage(tangle.EmptyMessageID, params.StartTime, params.StopTime, params.MeasureTimes)
 	if err != nil {
