@@ -29,7 +29,7 @@ type Clients struct {
 func NewClients(APIUrls []string, name string) *Clients {
 	clts := make([]*client.GoShimmerAPI, len(APIUrls))
 	for i, url := range APIUrls {
-		clts[i] = client.NewGoShimmerAPI(url, client.WithHTTPClient(http.Client{Timeout: 30 * time.Second}))
+		clts[i] = client.NewGoShimmerAPI(url, client.WithHTTPClient(http.Client{Timeout: 10 * time.Minute}))
 	}
 
 	return &Clients{
