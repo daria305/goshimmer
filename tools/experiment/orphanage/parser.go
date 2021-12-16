@@ -110,7 +110,7 @@ func countMessagesBy(issuedBy, orphanedBy map[string][]int, issued, orphaned []i
 func countMsgBy(issuedBy map[string][]int, issued []int, issuer string) {
 	for i, countPerRange := range issuedBy[issuer] {
 		if len(issued) == 0 {
-			log.Warnf("len of issued == 0, for issuer: %s", issuer)
+			log.Debugf("len of issued == 0, for issuer: %s", issuer)
 			return
 		}
 		issued[i] += countPerRange

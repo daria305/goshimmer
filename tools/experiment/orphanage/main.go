@@ -102,7 +102,7 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 	csvWriter := createWriter(paths.FinalPath, fileName, header)
 	defer csvWriter.Flush()
 
-	log.Info("Experiment will take: %s", time.Duration(len(qRange))*MaxParentAge+time.Duration(2+len(qRange)-1)*IdleSpamTime)
+	log.Infof("Experiment will take: %s", time.Duration(len(qRange))*MaxParentAge+time.Duration(2+len(qRange)-1)*IdleSpamTime)
 
 	honestClts := utils.NewClients(urls, "honest")
 	adversaryClts := utils.NewClients(adversaryUrl, "adversary")
@@ -130,7 +130,7 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 		grafanaLinks = append(grafanaLinks, link)
 		log.Infof("Experiment finished %d: %s", expId, link)
 		// update nextMsgID for orphanage API walk, we use second id from more than two max parent age checks
-		//walkStartMessageID = params.WalkStartMessageID
+		walkStartMessageID = params.WalkStartMessageID
 	}
 	log.Infof("Grafana link to all experiments: %s", createGrafanaLinkForExperimentDuration(expStart, time.Now()))
 }
@@ -212,14 +212,15 @@ func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients,
 
 func idleSpam(params *ExperimentParams, honestClts *utils.Clients) {
 	log.Infof("Idle period for next %s, only honest activity messages, num of honest nodes: %d, rate per node: %d", params.IdleSpamTime.String(), len(honestClts.GetGoShimmerAPIs()), params.IdleHonestRate)
-	honestClts.Spam(params.IdleHonestRate, params.IdleSpamTime, "poisson")
+	honestClts.Spam(params.IdleHonestRate*60, params.IdleSpamTime, "poisson")
 }
 
 func calculateRates(params *ExperimentParams, honestClts *utils.Clients) (int, int) {
 	// convert rate from mps to mpm
-	honestRate := int(float64(params.Mps*60) * (params.Q) / float64(len(honestClts.GetGoShimmerAPIs())))
-	adversaryRate := int(float64(params.Mps*60) * params.Q)
-	return honestRate, adversaryRate
+	n := len(honestClts.GetGoShimmerAPIs())
+	honestRate := float64(params.Mps*60) * (1 - params.Q) / float64(n)
+	adversaryRate := float64(params.Mps*60) * params.Q
+	return int(honestRate), int(adversaryRate)
 }
 
 func updateParamsAfterExpFinishes(params *ExperimentParams, startTime time.Time, stopTime time.Time) {
