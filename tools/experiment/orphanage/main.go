@@ -151,7 +151,7 @@ func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honest
 	idleSpam(params, honestClts)
 
 	// START ORPHANAGE ATTACK
-	performOrphanageAttack(params, honestClts, honestRate, adversaryClts, adversaryRate)
+	performOrphanageAttack(params, honestClts, honestRate, adversaryRate, adversaryClts)
 
 	idleSpam(params, honestClts)
 
@@ -188,7 +188,7 @@ func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honest
 	return
 }
 
-func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate int, adversaryClts *utils.Clients, adversaryRate int) {
+func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate, adversaryRate int, adversaryClts *utils.Clients) {
 	wg := &sync.WaitGroup{}
 	startTime := time.Now()
 	attackDuration := time.Duration(params.AttackDuration) * params.MaxParentAge
@@ -216,8 +216,9 @@ func idleSpam(params *ExperimentParams, honestClts *utils.Clients) {
 }
 
 func calculateRates(params *ExperimentParams, honestClts *utils.Clients) (int, int) {
-	honestRate := int(float64(params.Mps) * (1 - params.Q) / float64(len(honestClts.GetGoShimmerAPIs())))
-	adversaryRate := int(float64(params.Mps) * params.Q)
+	// convert rate from mps to mpm
+	honestRate := int(float64(params.Mps*60) * (params.Q) / float64(len(honestClts.GetGoShimmerAPIs())))
+	adversaryRate := int(float64(params.Mps*60) * params.Q)
 	return honestRate, adversaryRate
 }
 
