@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	MaxAdversaryTipPoolSize = 200
-	MaxHonestTipPoolSize    = 10
+	MaxAdversaryTipPoolSize = 2000
+	MaxHonestTipPoolSize    = 100
 )
 
 type TipManagerOrphanageAttack struct {

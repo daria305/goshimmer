@@ -103,7 +103,7 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 	csvWriter := createWriter(paths.FinalPath, fileName, header)
 	defer csvWriter.Flush()
 
-	log.Info("Experiment will take: %s", time.Duration(len(qRange))*MaxParentAge+time.Duration(2+len(qRange)-1)*IdleSpamTime)
+	log.Infof("Experiment will take: %s", time.Duration(len(qRange))*MaxParentAge+time.Duration(2+len(qRange)-1)*IdleSpamTime)
 
 	honestClts := utils.NewClients(urls, "honest")
 	adversaryClts := utils.NewClients(adversaryUrl, "adversary")
@@ -131,7 +131,7 @@ func RunOrphanageExperiment(k, mps, duration int, maxParentAge time.Duration, qR
 		grafanaLinks = append(grafanaLinks, link)
 		log.Infof("Experiment finished %d: %s", expId, link)
 		// update nextMsgID for orphanage API walk, we use second id from more than two max parent age checks
-		//walkStartMessageID = params.WalkStartMessageID
+		walkStartMessageID = params.WalkStartMessageID
 	}
 	log.Infof("Grafana link to all experiments: %s", createGrafanaLinkForExperimentDuration(expStart, time.Now()))
 }
@@ -152,7 +152,7 @@ func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honest
 	idleSpam(params, honestClts)
 
 	// START ORPHANAGE ATTACK
-	performOrphanageAttack(params, honestClts, honestRate, adversaryClts, adversaryRate)
+	performOrphanageAttack(params, honestClts, honestRate, adversaryRate, adversaryClts)
 
 	idleSpam(params, honestClts)
 
@@ -193,7 +193,7 @@ func requestAndParseOrphanageData(params *ExperimentParams, csvWriter *csv.Write
 	}
 }
 
-func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate int, adversaryClts *utils.Clients, adversaryRate int) {
+func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate, adversaryRate int, adversaryClts *utils.Clients) {
 	wg := &sync.WaitGroup{}
 	startTime := time.Now()
 	attackDuration := time.Duration(params.AttackDuration) * params.MaxParentAge
@@ -217,13 +217,15 @@ func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients,
 
 func idleSpam(params *ExperimentParams, honestClts *utils.Clients) {
 	log.Infof("Idle period for next %s, only honest activity messages, num of honest nodes: %d, rate per node: %d", params.IdleSpamTime.String(), len(honestClts.GetGoShimmerAPIs()), params.IdleHonestRate)
-	honestClts.Spam(params.IdleHonestRate, params.IdleSpamTime, "poisson")
+	honestClts.Spam(params.IdleHonestRate*60, params.IdleSpamTime, "poisson")
 }
 
 func calculateRates(params *ExperimentParams, honestClts *utils.Clients) (int, int) {
-	honestRate := int(float64(params.Mps) * (1 - params.Q) / float64(len(honestClts.GetGoShimmerAPIs())))
-	adversaryRate := int(float64(params.Mps) * params.Q)
-	return honestRate, adversaryRate
+	// convert rate from mps to mpm
+	n := len(honestClts.GetGoShimmerAPIs())
+	honestRate := float64(params.Mps*60) * (1 - params.Q) / float64(n)
+	adversaryRate := float64(params.Mps*60) * params.Q
+	return int(honestRate), int(adversaryRate)
 }
 
 func updateParamsAfterExpFinishes(params *ExperimentParams, startTime time.Time, stopTime time.Time) {

@@ -93,7 +93,7 @@ func (c *Clients) Spam(ratePerClient int, duration time.Duration, imif string) {
 }
 
 func (c *Clients) toggleSpammer(ratePerClient int, cltNumber int, imif string, on bool) {
-	spamResp, err := c.GetGoShimmerAPIs()[cltNumber].ToggleSpammer(on, ratePerClient*60, "mpm", imif)
+	spamResp, err := c.GetGoShimmerAPIs()[cltNumber].ToggleSpammer(on, ratePerClient, "mpm", imif)
 	if err != nil {
 		log.Errorf("Error: %s", err)
 		return
