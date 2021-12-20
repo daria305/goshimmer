@@ -25,20 +25,22 @@ type IssuePayloadFunc = func(payload payload.Payload, parentsCount ...int) (*tan
 
 // Spammer spams messages with a static data payload.
 type Spammer struct {
-	issuePayloadFunc IssuePayloadFunc
-	log              *logger.Logger
-	running          typeutils.AtomicBool
-	shutdown         chan struct{}
-	wg               sync.WaitGroup
-	goroutinesCount  *atomic.Int32
+	issuePayloadFunc  IssuePayloadFunc
+	log               *logger.Logger
+	running           typeutils.AtomicBool
+	shutdown          chan struct{}
+	maxParentAgeCheck int
+	wg                sync.WaitGroup
+	goroutinesCount   *atomic.Int32
 }
 
 // New creates a new spammer.
-func New(issuePayloadFunc IssuePayloadFunc, log *logger.Logger) *Spammer {
+func New(issuePayloadFunc IssuePayloadFunc, log *logger.Logger, maxParentAgeCheck int) *Spammer {
 	return &Spammer{
-		issuePayloadFunc: issuePayloadFunc,
-		shutdown:         make(chan struct{}),
-		log:              log,
+		issuePayloadFunc:  issuePayloadFunc,
+		shutdown:          make(chan struct{}),
+		log:               log,
+		maxParentAgeCheck: maxParentAgeCheck,
 	}
 }
 
@@ -87,7 +89,7 @@ func (s *Spammer) run(rate int, timeUnit time.Duration, imif string) {
 				s.goroutinesCount.Add(1)
 				defer s.goroutinesCount.Add(-1)
 				// we don't care about errors or the actual issued message
-				_, err := s.issuePayloadFunc(payload.NewGenericDataPayload([]byte("SPAM")))
+				_, err := s.issuePayloadFunc(payload.NewGenericDataPayload([]byte("SPAM")), s.maxParentAgeCheck)
 				if errors.Is(err, tangle.ErrNotSynced) {
 					s.log.Info("Stopped spamming messages because node lost sync")
 					s.signalShutdown()
