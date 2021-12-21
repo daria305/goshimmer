@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -19,7 +20,9 @@ const (
 type TipManagerOrphanageAttack struct {
 	*TipManager
 	orderedAdversaryTips []MessageID
+	advMutex             sync.Mutex
 	orderedHonestTips    []MessageID
+	honMutex             sync.Mutex
 	timestampMap         map[MessageID]time.Time
 }
 
@@ -36,12 +39,7 @@ func NewTipManagerOrphanageAttack(legitManager *TipManager) *TipManagerOrphanage
 }
 
 func (t *TipManagerOrphanageAttack) Tips(p payload.Payload, countParents int) (parents MessageIDs, err error) {
-	if countParents > t.tangle.Options.TipManagerParams.MaxParentsCount {
-		countParents = t.tangle.Options.TipManagerParams.MaxParentsCount
-	}
-	if countParents < t.tangle.Options.TipManagerParams.MinParentsCount {
-		countParents = t.tangle.Options.TipManagerParams.MinParentsCount
-	}
+	countParents = t.tangle.Options.TipManagerParams.MinParentsCount
 
 	parents = t.SelectTips(p, countParents)
 	return
@@ -79,26 +77,39 @@ func (t *TipManagerOrphanageAttack) AddTip(message *Message) {
 		return
 	}
 
-	var tipSet *[]MessageID
 	if message.IssuerPublicKey() == t.tangle.Options.Identity.PublicKey() {
-		tipSet = &t.orderedAdversaryTips
-		*tipSet = t.insertTip(*tipSet, messageID, timestamp, MaxAdversaryTipPoolSize)
+		t.insertAdvTip(messageID, timestamp, MaxAdversaryTipPoolSize)
+		t.tipsCleaner.ExecuteAt(messageID, func() {
+			t.removeAdvTip()
+		}, message.IssuingTime().Add(tipLifeGracePeriod))
 	} else {
-		tipSet = &t.orderedHonestTips
-		*tipSet = t.insertTip(*tipSet, messageID, timestamp, MaxHonestTipPoolSize)
+		t.insertHonTip(messageID, timestamp, MaxHonestTipPoolSize)
+		t.tipsCleaner.ExecuteAt(messageID, func() {
+			t.removeHonestTip()
+		}, message.IssuingTime().Add(tipLifeGracePeriod))
 	}
 
 	t.events.TipAdded.Trigger(&TipEvent{
 		MessageID: messageID,
 	})
 
-	t.tipsCleaner.ExecuteAt(messageID, func() {
-		// delete the oldest tip from the tip set
-		correctTipSet := tipSet
-		if len(*correctTipSet) > 0 {
-			*correctTipSet = (*correctTipSet)[:len(*correctTipSet)-1]
-		}
-	}, message.IssuingTime().Add(tipLifeGracePeriod))
+}
+
+func (t *TipManagerOrphanageAttack) removeHonestTip() {
+	t.honMutex.Lock()
+	defer t.honMutex.Unlock()
+	// delete the oldest tip from the tip set
+	if len(t.orderedHonestTips) > 0 {
+		t.orderedHonestTips = t.orderedHonestTips[:len(t.orderedHonestTips)-1]
+	}
+}
+func (t *TipManagerOrphanageAttack) removeAdvTip() {
+	t.advMutex.Lock()
+	defer t.advMutex.Unlock()
+	// delete the oldest tip from the tip set
+	if len(t.orderedAdversaryTips) > 0 {
+		t.orderedAdversaryTips = t.orderedAdversaryTips[:len(t.orderedAdversaryTips)-1]
+	}
 }
 
 func (t *TipManagerOrphanageAttack) SelectTips(p payload.Payload, count int) (parents MessageIDs) {
@@ -124,13 +135,25 @@ func (t *TipManagerOrphanageAttack) getTips(parentCount int, tipSet []MessageID)
 }
 
 // insertTip add tip to the malicious tip set and keeps descending order, so the oldest tips will be at the end
-func (t *TipManagerOrphanageAttack) insertTip(tipSet []MessageID, id MessageID, timestamp time.Time, maxTipPoolSize int) []MessageID {
+func (t *TipManagerOrphanageAttack) insertAdvTip(id MessageID, timestamp time.Time, maxTipPoolSize int) {
+	t.advMutex.Lock()
+	defer t.advMutex.Unlock()
 	t.timestampMap[id] = timestamp
-	idx := sort.Search(len(tipSet), func(idx int) bool {
-		return timestamp.UnixNano() >= t.timestampMap[(tipSet)[idx]].UnixNano()
+	idx := sort.Search(len(t.orderedAdversaryTips), func(idx int) bool {
+		return timestamp.UnixNano() >= t.timestampMap[(t.orderedAdversaryTips)[idx]].UnixNano()
 	})
-	tipSet = insertTipAt(tipSet, id, idx, maxTipPoolSize)
-	return tipSet
+	t.orderedAdversaryTips = t.insertTipAt(t.orderedAdversaryTips, id, idx, maxTipPoolSize)
+}
+
+// insertTip add tip to the malicious tip set and keeps descending order, so the oldest tips will be at the end
+func (t *TipManagerOrphanageAttack) insertHonTip(id MessageID, timestamp time.Time, maxTipPoolSize int) {
+	t.honMutex.Lock()
+	defer t.honMutex.Unlock()
+	t.timestampMap[id] = timestamp
+	idx := sort.Search(len(t.orderedHonestTips), func(idx int) bool {
+		return timestamp.UnixNano() >= t.timestampMap[(t.orderedHonestTips)[idx]].UnixNano()
+	})
+	t.orderedHonestTips = t.insertTipAt(t.orderedHonestTips, id, idx, maxTipPoolSize)
 }
 
 // TipCount the amount of strong tips.
@@ -144,10 +167,15 @@ func (t *TipManagerOrphanageAttack) AllTips() MessageIDs {
 }
 
 // insertTipAt inserts tip at given index
-func insertTipAt(tipSet []MessageID, id MessageID, idx, maxTipPoolSize int) []MessageID {
+func (t *TipManagerOrphanageAttack) insertTipAt(tipSet []MessageID, id MessageID, idx, maxTipPoolSize int) []MessageID {
 	if idx == len(tipSet) {
 		return append(tipSet, id)
 	}
+	// make place for new item at index idx
+	tipSet = append(tipSet[:idx+1], tipSet[idx:]...)
+
+	// insert new tip and keep the order
+	tipSet[idx] = id
 	// limit the tip pool size to MaxTipPoolSize
 	// by removing random tip with probability that decreases when index increases
 	if len(tipSet) > maxTipPoolSize {
@@ -155,12 +183,6 @@ func insertTipAt(tipSet []MessageID, id MessageID, idx, maxTipPoolSize int) []Me
 		// remove element at indexToRemove
 		tipSet = append(tipSet[:indexToRemove], tipSet[indexToRemove+1:]...)
 	}
-
-	// make place for new item at index idx
-	tipSet = append(tipSet[:idx+1], tipSet[idx:]...)
-
-	// insert new tip and keep the order
-	tipSet[idx] = id
 	return tipSet
 }
 
