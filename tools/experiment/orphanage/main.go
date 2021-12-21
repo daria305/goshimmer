@@ -163,29 +163,36 @@ func runSingleExperiment(params *ExperimentParams, csvWriter *csv.Writer, honest
 	for idx, node := range apis {
 		go responseAndParseResults(node, idx, params, resChan)
 	}
-
-	// awaiting results of an experiment to be collected
-	select {
-	case resp := <-resChan:
-		if resp != nil {
-			func() {
-				csvMutex.Lock()
-				defer csvMutex.Unlock() // read the requester id from the first row of data
-				requesterID := resp[0][11]
-				log.Infof("Writing to csv file, requester %s", requesterID)
-				err := csvWriter.WriteAll(resp)
-				if err != nil {
-					log.Errorf("Failed to write results to csv file: %s", err.Error())
-					return
-				}
-				csvWriter.Flush()
-			}()
+	respCount := 0
+	for {
+		// awaiting results of an experiment to be collected
+		select {
+		case resp := <-resChan:
+			respCount++
+			if resp != nil {
+				func() {
+					csvMutex.Lock()
+					defer csvMutex.Unlock() // read the requester id from the first row of data
+					requesterID := resp[0][11]
+					log.Infof("Writing to csv file, requester %s", requesterID)
+					err := csvWriter.WriteAll(resp)
+					if err != nil {
+						log.Errorf("Failed to write results to csv file: %s", err.Error())
+						return
+					}
+					csvWriter.Flush()
+				}()
+			}
+			if respCount == len(honestClts.GetGoShimmerAPIs()) {
+				log.Infof("All response collected")
+				return
+			}
+		case <-time.After(ResponseTimeout):
+			log.Infof("Response not received in time")
+			return
 		}
-	case <-time.After(ResponseTimeout):
-		log.Infof("Response not received in time")
 	}
 
-	return
 }
 
 func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients, honestRate, adversaryRate int, adversaryClts *utils.Clients) {
@@ -196,11 +203,11 @@ func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients,
 	log.Infof("Starting an orphanage attack with q=%f, mps=%d, advNodeID: %s, num of honest nodes: %d", params.Q, params.Mps, params.AdversaryID, len(honestClts.GetGoShimmerAPIs()))
 	wg.Add(2)
 	go func() {
-		honestClts.Spam(honestRate, attackDuration, "unit")
+		honestClts.Spam(honestRate, attackDuration, "uniform")
 		wg.Done()
 	}()
 	go func() {
-		adversaryClts.Spam(adversaryRate, attackDuration, "unit")
+		adversaryClts.Spam(adversaryRate, attackDuration, "uniform")
 		wg.Done()
 	}()
 	wg.Wait()
@@ -212,7 +219,7 @@ func performOrphanageAttack(params *ExperimentParams, honestClts *utils.Clients,
 
 func idleSpam(params *ExperimentParams, honestClts *utils.Clients) {
 	log.Infof("Idle period for next %s, only honest activity messages, num of honest nodes: %d, rate per node: %d", params.IdleSpamTime.String(), len(honestClts.GetGoShimmerAPIs()), params.IdleHonestRate)
-	honestClts.Spam(params.IdleHonestRate*60, params.IdleSpamTime, "poisson")
+	honestClts.Spam(params.IdleHonestRate*60, params.IdleSpamTime, "uniform")
 }
 
 func calculateRates(params *ExperimentParams, honestClts *utils.Clients) (int, int) {
